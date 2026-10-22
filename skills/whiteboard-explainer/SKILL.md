@@ -5,7 +5,7 @@ description: Explain code, architecture, data flows, algorithms, plans or trade-
 
 # Excalidraw explainer
 
-A live whiteboard shared with the user. You draw through the `whiteboard-mcp` MCP tools (`canvas_*`) or, without MCP, the `whiteboard-mcp call` CLI. They watch it update beside the chat and can move things, draw back or leave notes. Each chat has its own board; boards of other chats in the same workspace can be opened with `canvas_open {"board":"<title>"}`.
+A live whiteboard shared with the user. You draw through the `whiteboard-mcp` MCP tools (`canvas_*`) or, without MCP, the `whiteboard-mcp call` CLI. They watch it update beside the chat and can move things, draw back or leave notes. Each chat has its own board; boards of other chats can be opened with `canvas_open {"board":"<title or id>"}`, this workspace's first, then any folder (some apps, like Codex desktop, start every task in a new folder).
 
 ## When to draw
 
@@ -20,7 +20,7 @@ A live whiteboard shared with the user. You draw through the `whiteboard-mcp` MC
 4. **Check once**: after the main layout, `canvas_screenshot` one time to catch overlaps or cut-off labels, then fix them with `canvas_draw` on the same ids.
 5. **Listen**: when the user mentions the canvas or a tool result says they changed something or left a note, call `canvas_read`. It lists what they added, changed or deleted and their notes since your last read. Respond to them.
 6. **Update, don't redraw**: re-send an existing id with only the fields that change (`{"id":"api","x":400}`, `{"id":"db","label":"Postgres"}`). Use `canvas_delete` for removals. Start over only with `canvas_open {"fresh":true}`.
-7. **Keep it**: when a drawing is worth reusing or the user asks to save it, `canvas_save {"name":"<topic>"}` stores a frozen copy in the user's library (the user can also save from the board's menu or with Cmd/Ctrl+S). In a later chat, in any workspace, `canvas_search {"query":"<words>"}` finds saved boards and `canvas_open {"saved":"<id>"}` loads a copy into this chat's board (add `"fresh":true` if the board already has a drawing).
+7. **Keep it**: when a drawing is worth reusing or the user asks to save it, `canvas_save {"name":"<topic>"}` stores a frozen copy in the user's library (the user can also save from the board's menu or with Cmd/Ctrl+S). In a later chat, in any workspace, `canvas_search {"query":"<words>"}` finds other chats' live boards and saved copies: `canvas_open {"board":"<id>"}` opens a live one, `canvas_open {"saved":"<id>"}` loads a copy into this chat's board (add `"fresh":true` if the board already has a drawing). When the user names a board loosely and `canvas_open {board}` doesn't find it, it lists the closest boards: pick the one they meant by id.
 
 ## Element cheatsheet
 
