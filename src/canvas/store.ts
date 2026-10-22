@@ -7,6 +7,7 @@ import {
   type Actor,
   type ApplyResponse,
   type BinaryFile,
+  type CanvasMeta,
   type CanvasNote,
   type CanvasSnapshot,
   type CanvasSummary,
@@ -44,6 +45,8 @@ export interface CanvasStoreOptions {
 interface CanvasFile {
   id: string;
   title: string;
+  workspace?: string;
+  chat?: string;
   rev: number;
   updatedAt: number;
   elements: ExElement[];
@@ -54,6 +57,8 @@ interface CanvasFile {
 interface Canvas {
   id: string;
   title: string;
+  workspace?: string;
+  chat?: string;
   rev: number;
   updatedAt: number;
   elements: Map<string, ExElement>;
@@ -67,6 +72,15 @@ interface Canvas {
 }
 
 export const MAX_NOTE_LENGTH = 4000;
+const MAX_META_LENGTH = 4096;
+
+/** Only string workspace/chat fields, omitted when absent. */
+function meta(source: { workspace?: unknown; chat?: unknown }): { workspace?: string; chat?: string } {
+  return {
+    ...(typeof source.workspace === 'string' && source.workspace ? { workspace: source.workspace } : {}),
+    ...(typeof source.chat === 'string' && source.chat ? { chat: source.chat } : {}),
+  };
+}
 const MAX_ID_LENGTH = 128;
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -160,6 +174,7 @@ export class CanvasStore {
         elementCount: data.elements.filter((el) => !el.isDeleted).length,
         updatedAt: data.updatedAt,
         viewers: 0,
+        ...meta(data),
       });
     }
     return [...summaries.values()].sort((a, b) => b.updatedAt - a.updatedAt);
@@ -169,20 +184,35 @@ export class CanvasStore {
     return CANVAS_ID_PATTERN.test(id) && (this.canvases.has(id) || existsSync(this.filePath(id)));
   }
 
-  ensure(id: string, title?: string): CanvasSummary {
+  /** Creates the board if needed. A new title renames it; workspace and chat are set once. */
+  ensure(id: string, info: CanvasMeta = {}): CanvasSummary {
     if (!CANVAS_ID_PATTERN.test(id)) throw new ValidationError(`invalid canvas id "${id}" (expected ${CANVAS_ID_PATTERN.source})`);
-    if (title !== undefined && typeof title !== 'string') throw new ValidationError('title must be a string');
+    for (const key of ['title', 'workspace', 'chat'] as const) {
+      const value = info[key];
+      if (value !== undefined && (typeof value !== 'string' || value.length > MAX_META_LENGTH)) throw new ValidationError(`${key} must be a string of at most ${MAX_META_LENGTH} characters`);
+    }
+    const title = info.title?.trim();
     let c = this.load(id);
     if (!c) {
       const now = this.now();
-      c = { id, title: title?.trim() || id, rev: 0, updatedAt: now, elements: new Map(), files: new Map(), notes: [], log: [], logBase: 0, dirty: false, lastAccess: now };
+      c = { id, title: title || id, rev: 0, updatedAt: now, elements: new Map(), files: new Map(), notes: [], log: [], logBase: 0, dirty: false, lastAccess: now };
       this.canvases.set(id, c);
       this.markDirty(c);
-    } else if (title?.trim() && title.trim() !== c.title) {
-      c.title = title.trim();
+    } else if (title && title !== c.title) {
+      c.title = title;
       this.markDirty(c);
     }
+    for (const key of ['workspace', 'chat'] as const) {
+      if (info[key] && !c[key]) {
+        c[key] = info[key];
+        this.markDirty(c);
+      }
+    }
     return this.summary(c);
+  }
+
+  summaryOf(id: string): CanvasSummary {
+    return this.summary(this.get(id));
   }
 
   snapshot(id: string, viewers = 0): CanvasSnapshot {
@@ -326,7 +356,7 @@ export class CanvasStore {
   private summary(c: Canvas): CanvasSummary {
     let elementCount = 0;
     for (const el of c.elements.values()) if (!el.isDeleted) elementCount++;
-    return { id: c.id, title: c.title, elementCount, updatedAt: c.updatedAt, viewers: 0 };
+    return { id: c.id, title: c.title, elementCount, updatedAt: c.updatedAt, viewers: 0, ...meta(c) };
   }
 
   private get(id: string): Canvas {
@@ -378,6 +408,7 @@ export class CanvasStore {
       ? {
           id,
           title: data.title,
+          ...meta(data),
           rev: data.rev,
           updatedAt: data.updatedAt,
           elements: new Map(data.elements.map((el) => [el.id, el])),
@@ -414,6 +445,7 @@ export class CanvasStore {
     return {
       id,
       title: typeof raw.title === 'string' && raw.title ? raw.title : id,
+      ...meta(raw as Partial<CanvasFile>),
       rev: raw.rev,
       updatedAt,
       elements: (raw.elements as unknown[]).filter((el): el is ExElement => !elementProblem(el)),
@@ -434,6 +466,7 @@ export class CanvasStore {
     const data: CanvasFile = {
       id: c.id,
       title: c.title,
+      ...meta(c),
       rev: c.rev,
       updatedAt: c.updatedAt,
       elements: [...c.elements.values()],

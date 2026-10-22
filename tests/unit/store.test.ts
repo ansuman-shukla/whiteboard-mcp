@@ -150,7 +150,7 @@ describe('notes', () => {
 describe('persistence', () => {
   it('flushes atomically and reloads with a full resync for older revisions', () => {
     const s = makeStore();
-    s.ensure('c1', 'My canvas');
+    s.ensure('c1', { title: 'My canvas' });
     s.apply('c1', [el('a'), el('b')], 'agent');
     s.apply('c1', [el('b', { version: 2, isDeleted: true, updated: clock })], 'human');
     s.addNote('c1', 'note');
@@ -184,7 +184,7 @@ describe('persistence', () => {
 
   it('lists canvases that exist only on disk', () => {
     const s = makeStore();
-    s.ensure('disk-only', 'On disk');
+    s.ensure('disk-only', { title: 'On disk' });
     s.apply('disk-only', [el('a'), el('b', { isDeleted: true })], 'agent');
     s.close();
     writeFileSync(join(dir, 'Bad.ID.json'), '{}');
@@ -316,5 +316,26 @@ describe('validation', () => {
 
   it('applying to a missing canvas throws NotFoundError', () => {
     expect(() => makeStore().apply('nope', [el('a')], 'agent')).toThrow(NotFoundError);
+  });
+});
+
+describe('board metadata', () => {
+  it('sets workspace and chat once, renames by title, and persists all three', () => {
+    const s = makeStore();
+    expect(s.ensure('b1', { title: 'Untitled', workspace: '/work/app', chat: 'chat-1' })).toMatchObject({ title: 'Untitled', workspace: '/work/app', chat: 'chat-1' });
+    expect(s.ensure('b1', { title: 'How MCP works', workspace: '/elsewhere', chat: 'chat-2' })).toMatchObject({ title: 'How MCP works', workspace: '/work/app', chat: 'chat-1' });
+    expect(s.ensure('b1')).toMatchObject({ title: 'How MCP works' });
+    s.flush();
+    expect(readCanvasFile('b1')).toMatchObject({ title: 'How MCP works', workspace: '/work/app', chat: 'chat-1' });
+    const reloaded = makeStore();
+    expect(reloaded.list()).toEqual([expect.objectContaining({ id: 'b1', workspace: '/work/app', chat: 'chat-1' })]);
+    expect(reloaded.summaryOf('b1')).toMatchObject({ title: 'How MCP works', chat: 'chat-1' });
+  });
+
+  it('boards without metadata omit the fields; oversized or non-string values are rejected', () => {
+    const s = makeStore();
+    expect(Object.keys(s.ensure('plain'))).not.toContain('workspace');
+    expect(() => s.ensure('b2', { workspace: 'x'.repeat(5000) })).toThrow(ValidationError);
+    expect(() => s.ensure('b3', { chat: 42 as unknown as string })).toThrow(ValidationError);
   });
 });

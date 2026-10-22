@@ -35,12 +35,21 @@ export interface CanvasNote {
   rev: number;
 }
 
+/** Who a board belongs to: the workspace folder ("space") and the chat that created it. */
+export interface CanvasMeta {
+  title?: string;
+  workspace?: string;
+  chat?: string;
+}
+
 export interface CanvasSummary {
   id: string;
   title: string;
   elementCount: number;
   updatedAt: number;
   viewers: number;
+  workspace?: string;
+  chat?: string;
 }
 
 export interface CanvasSnapshot {
@@ -130,6 +139,21 @@ export type ClientMessage =
   | { t: 'note'; text: string }
   | { t: 'visible'; visible: boolean };
 
+/**
+ * Panel hosts (IDE extensions that show boards beside the chat) connect to `API.hostWs`.
+ * The daemon asks the host whose folders contain the board's workspace to show it.
+ */
+export type HostMessage =
+  | { t: 'hello'; folders: string[]; focused: boolean }
+  | { t: 'state'; folders?: string[]; focused?: boolean }
+  | { t: 'shown'; reqId: string; ok: boolean; error?: string };
+
+export type ServerHostMessage = { t: 'show'; reqId: string; canvasId: string; title: string };
+
+export interface ShowRequest {
+  workspace?: string;
+}
+
 export const API = {
   health: '/health',
   canvases: '/api/canvases',
@@ -139,6 +163,8 @@ export const API = {
   changes: (id: string, since: number) => `/api/canvases/${encodeURIComponent(id)}/changes?since=${since}`,
   notes: (id: string) => `/api/canvases/${encodeURIComponent(id)}/notes`,
   request: (id: string) => `/api/canvases/${encodeURIComponent(id)}/request`,
+  show: (id: string) => `/api/canvases/${encodeURIComponent(id)}/show`,
+  hostWs: '/ws/host',
   viewer: (id: string) => `/c/${encodeURIComponent(id)}`,
   ws: '/ws',
 } as const;
