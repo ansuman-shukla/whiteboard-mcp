@@ -1,7 +1,7 @@
 import { CaptureUpdateAction, FONT_FAMILY, restoreElements } from '@excalidraw/excalidraw';
 import type { ExcalidrawElement } from '@excalidraw/excalidraw/element/types';
 import type { BinaryFileData, BinaryFiles, ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
-import type { Actor, BinaryFile, CanvasSnapshot, ExElement, ServerMessage, ViewerRequestType } from '../../src/shared/protocol';
+import type { Actor, BinaryFile, CanvasSnapshot, ExElement, SavedSummary, ServerMessage, ViewerRequestType } from '../../src/shared/protocol';
 import { connect, type LinkStatus } from './connection';
 import { pulseHighlight } from './highlight';
 import { handleRequest, type RequestContext } from './requests';
@@ -12,11 +12,15 @@ export interface LiveEvents {
   viewers(count: number): void;
   /** Ids of live elements the agent just drew or changed (remote, or converted mermaid). */
   agentDrew(ids: string[]): void;
+  /** The board's title from the latest snapshot (its id when untitled). */
+  title(title: string): void;
   dark(): boolean;
 }
 
 export interface Live {
   sendNote(text: string): boolean;
+  /** Saves the board, including edits not sent yet, to the library. */
+  save(name: string): Promise<SavedSummary>;
   stop(): void;
 }
 
@@ -24,6 +28,7 @@ type El = ExcalidrawElement;
 
 const SEND_INTERVAL_MS = 100;
 const FONT_TIMEOUT_MS = 3000;
+const SAVE_TIMEOUT_MS = 10_000;
 const FAMILY_NAMES = new Map<number, string>(Object.entries(FONT_FAMILY).map(([name, id]) => [id, name]));
 
 const asEls = (elements: readonly ExElement[]) => elements as unknown as El[];
@@ -60,6 +65,16 @@ export function startLive(api: ExcalidrawImperativeAPI, wsUrl: string, ev: LiveE
   let stopped = false;
   let queue: Promise<void> = Promise.resolve();
   let cancelHighlight: (() => void) | undefined;
+  let pendingSave: { resolve(saved: SavedSummary): void; reject(err: Error): void; timer: ReturnType<typeof setTimeout> } | undefined;
+
+  const settleSave = (outcome: { saved: SavedSummary } | { error: string }) => {
+    const p = pendingSave;
+    if (!p) return;
+    pendingSave = undefined;
+    clearTimeout(p.timer);
+    if ('saved' in outcome) p.resolve(outcome.saved);
+    else p.reject(new Error(outcome.error));
+  };
 
   const scene = () => api.getSceneElementsIncludingDeleted();
 
@@ -92,6 +107,7 @@ export function startLive(api: ExcalidrawImperativeAPI, wsUrl: string, ev: LiveE
     addFiles(Object.values(canvas.files));
     if (replaced.size) commit(elements, replaced);
     ev.viewers(canvas.viewers);
+    ev.title(canvas.title);
     synced = true;
     sendVisible();
     throttle.flush();
@@ -157,13 +173,18 @@ export function startLive(api: ExcalidrawImperativeAPI, wsUrl: string, ev: LiveE
         return enqueue(() => respond(msg.reqId, msg.type, msg.payload));
       case 'viewers':
         return ev.viewers(msg.count);
+      case 'saved':
+        return settleSave(msg.ok ? { saved: msg.saved } : { error: msg.error });
       case 'error':
         return console.warn('[whiteboard-mcp] daemon:', msg.message);
     }
   };
 
   const conn = connect(wsUrl, onMessage, (status) => {
-    if (status !== 'live') synced = false;
+    if (status !== 'live') {
+      synced = false;
+      settleSave({ error: 'connection lost' });
+    }
     ev.status(status);
   });
 
@@ -182,9 +203,20 @@ export function startLive(api: ExcalidrawImperativeAPI, wsUrl: string, ev: LiveE
 
   return {
     sendNote: (text) => conn.send({ t: 'note', text }),
+    save(name) {
+      if (pendingSave) return Promise.reject(new Error('already saving'));
+      if (!synced || !conn.isOpen()) return Promise.reject(new Error('offline'));
+      // Edits not sent yet go first; the socket keeps the order, so the daemon saves them too.
+      throttle.flush();
+      return new Promise((resolve, reject) => {
+        pendingSave = { resolve, reject, timer: setTimeout(() => settleSave({ error: 'timed out' }), SAVE_TIMEOUT_MS) };
+        if (!conn.send({ t: 'save', name })) settleSave({ error: 'offline' });
+      });
+    },
     stop() {
       throttle.flush();
       throttle.cancel();
+      settleSave({ error: 'viewer closed' });
       stopped = true;
       offChange();
       document.removeEventListener('visibilitychange', onVisibility);
