@@ -34,7 +34,7 @@ export function splitCommand(template: string): string[] {
 export function openerArgv(url: string, setting = process.env.WHITEBOARD_OPEN, platform = process.platform): string[] | null {
   const mode = setting?.trim();
   if (mode === 'none') return null;
-  if (!mode || mode === 'browser') {
+  if (!mode || mode === 'browser' || mode === 'auto') {
     if (platform === 'darwin') return ['open', url];
     // run verbatim (see openViewer) so cmd sees the quotes and doesn't split the URL at '&'
     if (platform === 'win32') return ['cmd', '/c', 'start', '""', `"${url}"`];
