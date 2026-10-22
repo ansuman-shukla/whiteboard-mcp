@@ -204,11 +204,13 @@ describe('WhiteboardHost', () => {
           { id: 'c', title: 'New', workspace: '/work/app/sub', updatedAt: 5 },
           { id: 'd', title: 'Sibling prefix', workspace: '/work/application', updatedAt: 8 },
           { id: 'e', title: 'Legacy', updatedAt: 7 },
+          { id: 'f', title: 'Dot folder', workspace: '/work/app/..cache', updatedAt: 3 },
+          { id: 'g', title: 'Parent', workspace: '/work', updatedAt: 6 },
         ],
       };
     };
     const { host } = makeHost({ fetchImpl });
-    expect((await host.boards()).map((b: { id: string }) => b.id)).toEqual(['c', 'a']);
+    expect((await host.boards()).map((b: { id: string }) => b.id)).toEqual(['c', 'f', 'a']);
     expect(request!.url).toBe('http://127.0.0.1:47428/api/canvases');
     expect(request!.init.headers.Authorization).toBe('Bearer tok/+');
     expect(request!.init.signal).toBeInstanceOf(AbortSignal);

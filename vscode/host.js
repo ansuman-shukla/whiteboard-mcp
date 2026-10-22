@@ -18,7 +18,7 @@ function whiteboardHome(configured, env = process.env) {
 
 function insideFolder(folder, file) {
   const relative = path.relative(folder, file);
-  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+  return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
 }
 
 class WhiteboardHost {
