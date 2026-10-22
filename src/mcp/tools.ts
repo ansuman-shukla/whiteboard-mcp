@@ -1,10 +1,11 @@
 import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, dirname, extname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { dirname, extname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { CanvasClient, CanvasError } from '../canvas/client.js';
 import { describeChanges, describeScene } from '../shared/describe.js';
 import { ELEMENT_SPEC_FIELDS, buildElements, deleteElements, type ElementSpec } from '../shared/elements.js';
-import type { ChangesResponse, ExElement, MermaidResult, SavedSummary, ScreenshotResult } from '../shared/protocol.js';
+import type { CanvasSummary, ChangesResponse, ExElement, MermaidResult, SavedSummary, ScreenshotResult } from '../shared/protocol.js';
+import { closestBoards, findBoard, whereFrom } from './find.js';
 import { GUIDE } from './guide.js';
 import { openViewer } from './open.js';
 import { stripNulls, validate, type Schema } from './schema.js';
@@ -314,10 +315,19 @@ async function findSaved(client: CanvasClient, wanted: string, workspace: string
   throw new ToolError(`"${wanted}" matches several saved boards; pass one id: ${hits.slice(0, 10).map((s) => `"${s.name}" [${s.id}]`).join('; ')}.`);
 }
 
-const savedLine = (s: SavedSummary, workspace: string): string => {
-  const where = s.workspace === workspace ? 'this workspace' : s.workspace ? `from ${basename(s.workspace)}` : 'no workspace';
-  return `- "${s.name}" [${s.id}] ${s.elementCount} el, saved ${new Date(s.savedAt).toLocaleDateString('en-CA')}, ${where}${s.snippet ? `: "${s.snippet}"` : ''}`;
-};
+const savedLine = (s: SavedSummary, workspace: string): string =>
+  `- "${s.name}" [${s.id}] ${s.elementCount} el, saved ${new Date(s.savedAt).toLocaleDateString('en-CA')}, ${whereFrom(s.workspace, workspace)}${s.snippet ? `: "${s.snippet}"` : ''}`;
+
+/** A live board for canvas_open {board}: this workspace first, then any folder; otherwise the closest boards to pick from. */
+async function findLiveBoard(client: CanvasClient, all: CanvasSummary[], wanted: string, workspace: string): Promise<CanvasSummary> {
+  const lookup = findBoard(all, wanted, workspace);
+  if ('found' in lookup) return lookup.found;
+  if ('several' in lookup) throw new ToolError(`Several boards in other folders are called "${wanted}"; pass one id: ${lookup.several.map((b) => `[${b.id}] ${whereFrom(b.workspace, workspace)}`).join('; ')}.`);
+  const closest = closestBoards(all, await client.searchSaved('', workspace, 50), wanted, workspace).map((s) =>
+    s.kind === 'board' ? `"${s.board.title}" [${s.board.id}] ${whereFrom(s.board.workspace, workspace)}` : `saved copy "${s.saved.name}" (load with saved:"${s.saved.id}")`,
+  );
+  throw new ToolError(`No board called "${wanted}" in any folder.${closest.length ? ` Closest, open one by id: ${closest.join('; ')}.` : ''}`);
+}
 
 async function drawOnce(client: CanvasClient, ref: CanvasRef, specs: ElementSpec[]) {
   const snap = await client.snapshot(ref.id);
@@ -329,10 +339,10 @@ async function drawOnce(client: CanvasClient, ref: CanvasRef, specs: ElementSpec
 export const TOOLS: Tool[] = [
   {
     name: 'canvas_open',
-    description: "Show this chat's own whiteboard to the human beside the chat. Name it with title. To reuse another chat's drawing from this workspace, pass board.",
+    description: "Show this chat's own whiteboard to the human beside the chat. Name it with title. To reuse another chat's drawing (any folder), pass board.",
     inputSchema: obj({
       title: str("Name this chat's board after the topic, e.g. \"How MCP works\""),
-      board: str("Switch to another board of this workspace by id or title; \"own\" returns to this chat's board"),
+      board: str("Open another chat's board by id or title (this folder first, then any); \"own\" returns to this chat's"),
       saved: str("Load a copy of a saved board (id or name, see canvas_search) into this chat's board"),
       fresh: bool('Clear the board first (needed to load saved over a non-empty board)'),
       open: bool('Show it to the human if nobody is watching (default true)'),
@@ -341,14 +351,17 @@ export const TOOLS: Tool[] = [
       const client = await ctx.connect();
       const workspace = ctx.session.workspace;
       const own = ctx.session.ownBoard(ctx.chat);
-      const boards = (await client.list()).filter((b) => b.workspace === workspace || b.id === own.id);
+      const all = await client.list();
+      const boards = all.filter((b) => b.workspace === workspace || b.id === own.id);
       const wanted = (args.board as string | undefined)?.trim();
       const savedWanted = (args.saved as string | undefined)?.trim();
       if (wanted && savedWanted) throw new ToolError('Pass board or saved, not both.');
       let target: CanvasRef = ctx.session.board(ctx.chat);
-      if (wanted) {
-        const match = wanted.toLowerCase() === 'own' ? own : boards.find((b) => b.id === wanted) ?? boards.find((b) => b.title.toLowerCase() === wanted.toLowerCase());
-        if (!match) throw new ToolError(`No board "${wanted}" in this workspace. Boards: ${boards.map((b) => `${b.title} [${b.id}]`).join('; ') || 'none yet'}.`);
+      let elsewhere: string | undefined;
+      if (wanted?.toLowerCase() === 'own') target = { id: own.id, title: '' };
+      else if (wanted) {
+        const match = await findLiveBoard(client, all, wanted, workspace);
+        if (match.workspace !== workspace) elsewhere = whereFrom(match.workspace, workspace);
         target = { id: match.id, title: '' };
       }
       const loaded = savedWanted ? await findSaved(client, savedWanted, workspace) : undefined;
@@ -368,7 +381,7 @@ export const TOOLS: Tool[] = [
       const others = boards.filter((b) => b.id !== ref.id).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 10);
       const mine = ref.id === own.id;
       return text(
-        `${mine ? "This chat's board" : 'Board from another chat'}: ${boardName(ref)} [${ref.id}]. ${snap.viewers ? 'The human is watching it.' : shown}`,
+        `${mine ? "This chat's board" : `Board from another chat${elsewhere ? ` (${elsewhere})` : ''}`}: ${boardName(ref)} [${ref.id}]. ${snap.viewers ? 'The human is watching it.' : shown}`,
         loaded && `Loaded a copy of saved board "${loaded.name}" [${loaded.id}]; the saved copy stays unchanged.`,
         snap.elements.length ? describeScene(snap.elements, { maxElements: 12 }) : 'The board is empty.',
         others.length > 0 && `Other boards in this workspace (open one with board): ${others.map((b) => `${b.title === b.id ? '(untitled)' : b.title} [${b.id}, ${b.elementCount} el]`).join('; ')}`,
@@ -514,18 +527,21 @@ export const TOOLS: Tool[] = [
   },
   {
     name: 'canvas_search',
-    description: 'Search saved boards from every workspace (this one first) by name or text on them. canvas_open {saved} loads one into this chat.',
+    description: "Find boards of every folder (this one first) by name or text: other chats' live boards and saved copies. Open with canvas_open {board} or {saved}.",
     inputSchema: obj({ query: str('Words that must all match; omit to list the latest') }),
     quiet: true,
     async run(args, ctx) {
       const client = await ctx.connect();
+      const workspace = ctx.session.workspace;
       const query = ((args.query as string | undefined) ?? '').trim();
-      const hits = await client.searchSaved(query, ctx.session.workspace);
-      if (!hits.length) return query ? `No saved boards match "${query}".` : 'No saved boards yet; canvas_save saves one.';
+      const [live, saved] = await Promise.all([client.searchBoards(query, workspace), client.searchSaved(query, workspace)]);
+      if (!live.length && !saved.length) return query ? `No boards or saved copies match "${query}".` : 'No boards yet.';
+      const matching = query ? ` matching "${query}"` : '';
       return text(
-        `${plural(hits.length, 'saved board')}${query ? ` matching "${query}"` : ''}, this workspace first:`,
-        ...hits.map((s) => savedLine(s, ctx.session.workspace)),
-        'canvas_open {saved:"<id>"} loads a copy into this chat\'s board.',
+        live.length > 0 && `${plural(live.length, 'live board')}${matching}, this workspace first (canvas_open {board:"<id>"} opens one):`,
+        ...live.map((b) => `- "${b.title === b.id ? '(untitled)' : b.title}" [${b.id}] ${b.elementCount} el, changed ${new Date(b.updatedAt).toLocaleDateString('en-CA')}, ${whereFrom(b.workspace, workspace)}${b.snippet ? `: "${b.snippet}"` : ''}`),
+        saved.length > 0 && `${plural(saved.length, 'saved board')}${matching} (canvas_open {saved:"<id>"} loads a copy into this chat's board):`,
+        ...saved.map((s) => savedLine(s, workspace)),
       );
     },
   },
