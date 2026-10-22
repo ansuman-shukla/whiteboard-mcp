@@ -129,6 +129,7 @@ describe('BoardTabs', () => {
     expect(created.map((p) => p.title)).toEqual(['Whiteboard', 'Whiteboard']);
     expect(iframeSrc(created[0]!)).toMatch(/theme=light$/);
     expect(created[1]!.webview.html).not.toContain('"><script>');
+    expect(created[0]!.webview.html).toContain('?token=tok&amp;embed=1&amp;theme=light"');
     expect(() => tabs.show('x', 'https://evil.example/c/x', 'X')).toThrow(/Only local/);
     expect(() => tabs.show('y', 'http://192.168.1.2:1/c/y', 'Y')).toThrow(/Only local/);
     expect(() => tabs.show('z', 'https://127.0.0.1:1/c/z', 'Z')).toThrow(/Only local/);
