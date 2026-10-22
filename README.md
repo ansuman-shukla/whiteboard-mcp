@@ -90,7 +90,7 @@ The skill file also helps MCP agents decide when to draw. Install it where your 
 
 | Tool | What it does |
 |---|---|
-| `canvas_open` | Open this workspace's board (or a named board) in the viewer; returns URL and a summary |
+| `canvas_open` | Show this chat's board beside the chat, name it (`title`), or switch to another chat's board in this workspace (`board`) |
 | `canvas_read` | Describe the board compactly, plus what you changed and noted since the agent's last read |
 | `canvas_draw` | Create or update elements: shapes, text, labelled arrows bound with `from`/`to`, frames |
 | `canvas_delete` | Delete elements by id, or clear the board |
@@ -102,15 +102,37 @@ The skill file also helps MCP agents decide when to draw. Install it where your 
 
 Every tool result also says when you've changed something since the agent's last `canvas_read`. MCP can't interrupt the agent mid-turn, so when you draw something for it, tell it to "look at the canvas".
 
-## Boards
+## Boards and scope
 
-Each workspace gets its own board (named after the folder; the agent's MCP roots are used when the client provides them). Named boards (`canvas_open {"name":"auth flow"}`) keep separate topics apart. Boards persist in `~/.whiteboard-mcp/canvases/` and are shared by every session in that workspace.
+```
+workspace folder ("space")
+├─ chat "what is MCP?"        → its own board, titled by topic
+├─ chat "auth architecture"   → its own board
+└─ any chat can list these and open one: canvas_open {"board":"auth architecture"}
+```
+
+- **One board per chat**, created on its first drawing, kept in `~/.whiteboard-mcp/canvases/`. Closing the chat or restarting keeps it.
+- **Boards belong to the workspace folder** (the agent's MCP root, else its working directory). Chats in the same folder can read and draw on each other's boards; other folders don't see them.
+- **How a chat is identified**, first match wins: the host's chat id in tool-call `_meta` (`sessionId`, `conversationId`, `chatId`…), `WHITEBOARD_CHAT_ID`, the output of `WHITEBOARD_CHAT_COMMAND`, else the MCP server process. Set one of the env vars if your agent restarts its MCP servers within a chat and you want it to keep its board.
+
+## Where the board appears
+
+```
+canvas_open / canvas_draw while nobody is watching
+   ├─ an editor panel host is connected (e.g. a VS Code-style extension) → shown beside the chat
+   ├─ agent runs inside an editor without a panel host → nothing opens; the agent tells you how to open it
+   └─ elsewhere (terminal agents) → your browser
+```
+
+Panel hosts connect to the daemon at `/ws/host` (token-protected) and say which folders they show; the daemon asks the one showing the board's workspace (else the focused one) to open it. The agent never gets the board link while a panel can show it, and it is told not to open board links in browser or preview tools.
 
 ## Configuration
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `WHITEBOARD_OPEN` | `browser` | How to show the viewer: `browser`, `none`, or a command template containing `{url}` (run without a shell), e.g. `firefox --new-window {url}` |
+| `WHITEBOARD_OPEN` | `auto` | When no panel host is connected: `auto` (browser, but nothing inside an editor), `browser`, `none`, or a command template containing `{url}` (run without a shell), e.g. `firefox --new-window {url}` |
+| `WHITEBOARD_CHAT_ID` | | Fixed chat id for this MCP server process |
+| `WHITEBOARD_CHAT_COMMAND` | | Command printing the current chat id (run once, without a shell), for hosts that restart MCP servers within a chat |
 | `WHITEBOARD_PORT` | `47428` | Daemon port (falls back to a free port if taken by something else) |
 | `WHITEBOARD_HOME` | `~/.whiteboard-mcp` | State: boards, token, daemon info, logs |
 | `WHITEBOARD_IDLE_MS` | `1800000` | Daemon exits after this long with no viewers or requests (`0` = never) |
@@ -118,7 +140,7 @@ Each workspace gets its own board (named after the folder; the agent's MCP roots
 | `WHITEBOARD_EXPORT_DIR` | | Extra directory `canvas_export` may write to (besides the workspace and temp) |
 | `WHITEBOARD_DEBUG` | | `1` logs MCP diagnostics to stderr |
 
-CLI: `whiteboard-mcp [mcp] | call <tool> [json|-] | tools | open [name] | url [name] | status | stop | serve`. `url` prints only the viewer URL, for IDE panels that embed the board (e.g. an editor split view).
+CLI: `whiteboard-mcp [mcp] | call <tool> [json|-] | tools | open | url [board] | status | stop | serve`. CLI calls act as one chat with its own board; `url` prints its viewer link, or a workspace board's by title.
 
 ## Security
 

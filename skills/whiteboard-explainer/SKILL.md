@@ -1,11 +1,11 @@
 ---
 name: whiteboard-explainer
-description: Explain code, architecture, data flows, algorithms, plans or trade-offs visually on a live Excalidraw canvas the user watches in their browser (and can draw on or annotate). Use when a diagram would explain better than prose, when the user asks to "draw", "sketch", "diagram", "visualise" or "show" something, or when they mention the canvas, the whiteboard or something they drew.
+description: Explain code, architecture, data flows, algorithms, plans or trade-offs visually on a live whiteboard shown to the user beside the chat (they can draw on it or annotate). Use when a diagram would explain better than prose, when the user asks to "draw", "sketch", "diagram", "visualise" or "show" something, or when they mention the canvas, the whiteboard or something they drew.
 ---
 
 # Excalidraw explainer
 
-A live whiteboard shared with the user. You draw through the `whiteboard-mcp` MCP tools (`canvas_*`) or, without MCP, the `whiteboard-mcp call` CLI. They watch it update in a browser tab and can move things, draw back or leave notes.
+A live whiteboard shared with the user. You draw through the `whiteboard-mcp` MCP tools (`canvas_*`) or, without MCP, the `whiteboard-mcp call` CLI. They watch it update beside the chat and can move things, draw back or leave notes. Each chat has its own board; boards of other chats in the same workspace can be opened with `canvas_open {"board":"<title>"}`.
 
 ## When to draw
 
@@ -14,7 +14,7 @@ A live whiteboard shared with the user. You draw through the `whiteboard-mcp` MC
 
 ## The live explain loop
 
-1. **Open**: `canvas_open` once per task. It opens the browser tab if none is connected and tells you what is already on the board. Call `canvas_guide` once if you haven't read it yet (layout, sizes, colours).
+1. **Open**: `canvas_open {"title":"<topic>"}` once per topic. It shows this chat's board to the user and tells you what is already on it. Never open board links in a browser or preview tool yourself. Call `canvas_guide` once if you haven't read it yet (layout, sizes, colours).
 2. **Draw step by step**: one `canvas_draw` per idea (the components, then the flow between them, then annotations). After each call, write one or two short sentences in chat that point at the canvas ("the blue boxes are the services"). The canvas carries the detail, keep the chat brief.
 3. **Point**: `canvas_focus {"ids":["api","db"],"highlight":true}` when you talk about specific parts.
 4. **Check once**: after the main layout, `canvas_screenshot` one time to catch overlaps or cut-off labels, then fix them with `canvas_draw` on the same ids.
@@ -43,4 +43,4 @@ whiteboard-mcp call canvas_draw - < spec.json   # long specs from stdin
 whiteboard-mcp tools                       # every tool with its JSON schema
 ```
 
-Exit code 1 means the tool failed; the message says what to do (usually `canvas_open` when no browser tab is connected).
+Exit code 1 means the tool failed; the message says what to do (for example when nobody can see the board yet).

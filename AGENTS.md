@@ -18,11 +18,13 @@ agent ──stdio JSON-RPC──▶ whiteboard-mcp (MCP server, one per agent se
 - `src/shared/protocol.ts` is the wire contract (REST paths, WS messages, merge rule). Change it first, then every side.
 - `src/shared/config.ts`: state dir (`WHITEBOARD_HOME`, default `~/.whiteboard-mcp`), port (`WHITEBOARD_PORT`, default 47428), file paths.
 - `src/canvas/store.ts`: in-memory canvases persisted as JSON (atomic write, debounced), per-canvas monotonic `rev`, bounded change log, tombstone pruning, idle unload.
-- `src/canvas/daemon.ts`: REST + WS hub, token auth, Host/Origin checks, viewer request relay (screenshot, mermaid, focus), heartbeat, idle exit, single-instance lock.
+- `src/canvas/daemon.ts`: REST + WS hub, token auth, Host/Origin checks, viewer request relay (screenshot, mermaid, focus), panel hosts (`/ws/host`: IDE extensions that show boards beside the chat, routed by workspace folder, then focus), heartbeat, idle exit (hosts don't keep it alive), single-instance lock.
 - `src/canvas/client.ts`: Node client used by the MCP layer and CLI; starts the daemon on demand.
 - `src/shared/elements.ts`: turns compact agent element specs into complete Excalidraw elements (labels as bound text, arrow bindings and edge routing, text metrics), updates and deletes with binding upkeep.
 - `src/shared/describe.ts`: compact text description of a scene and of changes since a revision.
 - `src/mcp/*`, `src/cli.ts`: minimal stdio JSON-RPC MCP server (no SDK at runtime), tools, CLI mode, viewer opening.
+- Scope: one board per chat (`chatBoard(workspace, chat)`), boards tagged with `workspace` + `chat` and listed per workspace. Chat id: tool-call `_meta` > `WHITEBOARD_CHAT_ID` > `WHITEBOARD_CHAT_COMMAND` > per process. Tool calls get a `ChatContext`, never shared mutable chat state, because one process may serve several chats.
+- Showing: `ChatContext.reveal` asks a panel host first; without one it opens a browser only outside editors (or per `WHITEBOARD_OPEN`). Never put the board URL in a result when a panel showed it.
 - `frontend/`: React + Excalidraw viewer; live bidirectional sync using Excalidraw's version/versionNonce reconciliation.
 
 ## Rules
