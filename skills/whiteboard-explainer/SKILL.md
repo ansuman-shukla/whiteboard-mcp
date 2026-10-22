@@ -20,6 +20,7 @@ A live whiteboard shared with the user. You draw through the `whiteboard-mcp` MC
 4. **Check once**: after the main layout, `canvas_screenshot` one time to catch overlaps or cut-off labels, then fix them with `canvas_draw` on the same ids.
 5. **Listen**: when the user mentions the canvas or a tool result says they changed something or left a note, call `canvas_read`. It lists what they added, changed or deleted and their notes since your last read. Respond to them.
 6. **Update, don't redraw**: re-send an existing id with only the fields that change (`{"id":"api","x":400}`, `{"id":"db","label":"Postgres"}`). Use `canvas_delete` for removals. Start over only with `canvas_open {"fresh":true}`.
+7. **Keep it**: when a drawing is worth reusing or the user asks to save it, `canvas_save {"name":"<topic>"}` stores a frozen copy in the user's library (the user can also save from the board's menu or with Cmd/Ctrl+S). In a later chat, in any workspace, `canvas_search {"query":"<words>"}` finds saved boards and `canvas_open {"saved":"<id>"}` loads a copy into this chat's board (add `"fresh":true` if the board already has a drawing).
 
 ## Element cheatsheet
 
@@ -39,6 +40,8 @@ whiteboard-mcp call canvas_draw '{"elements":[{"id":"api","type":"rectangle","x"
 whiteboard-mcp call canvas_focus '{"ids":["db"],"highlight":true}'
 whiteboard-mcp call canvas_screenshot      # prints the path of a PNG; view it to check the layout
 whiteboard-mcp call canvas_read
+whiteboard-mcp call canvas_save '{"name":"Auth flow"}'
+whiteboard-mcp call canvas_search '{"query":"auth"}'
 whiteboard-mcp call canvas_draw - < spec.json   # long specs from stdin
 whiteboard-mcp tools                       # every tool with its JSON schema
 ```
