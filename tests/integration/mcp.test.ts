@@ -1,9 +1,9 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { homedir, tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -32,10 +32,12 @@ function freePort(): Promise<number> {
   });
 }
 
-async function connect(opts: { cwd?: string; roots?: string; env?: Record<string, string> } = {}): Promise<Client> {
+async function connect(opts: { cwd?: string; roots?: string; env?: Record<string, string>; unset?: string[] } = {}): Promise<Client> {
   const client = new Client({ name: 'test', version: '1.0.0' }, { capabilities: opts.roots ? { roots: { listChanged: true } } : {} });
   if (opts.roots) client.setRequestHandler(ListRootsRequestSchema, async () => ({ roots: [{ uri: pathToFileURL(opts.roots!).href, name: 'root' }] }));
-  await client.connect(new StdioClientTransport({ command: process.execPath, args: [cli], env: { ...env, ...opts.env }, cwd: opts.cwd ?? workspace, stderr: 'ignore' }));
+  const childEnv = { ...env, ...opts.env };
+  for (const key of opts.unset ?? []) delete childEnv[key];
+  await client.connect(new StdioClientTransport({ command: process.execPath, args: [cli], env: childEnv, cwd: opts.cwd ?? workspace, stderr: 'ignore' }));
   clients.push(client);
   return client;
 }
@@ -397,6 +399,32 @@ describe('showing boards', () => {
     } finally {
       otherWindow.close();
     }
+  });
+
+  it.skipIf(process.platform === 'win32')('outside an editor every new CLI session opens its own fresh board in the browser on its first drawing', async () => {
+    // A stand-in for the platform opener (`open` / `xdg-open`) records what would be opened.
+    const bin = join(root, 'bin');
+    const opened = join(root, 'opened.log');
+    mkdirSync(bin, { recursive: true });
+    for (const name of ['open', 'xdg-open']) writeFileSync(join(bin, name), `#!/bin/sh\nprintf '%s\\n' "$1" >> ${JSON.stringify(opened)}\n`, { mode: 0o755 });
+    const cliSession = () =>
+      connect({ env: { PATH: `${bin}${delimiter}${env.PATH}`, WHITEBOARD_OPEN: '' }, unset: ['VSCODE_PID', 'VSCODE_IPC_HOOK_CLI', 'CURSOR_TRACE_ID', 'TERM_PROGRAM'] });
+    const sessions = [await cliSession(), await cliSession()];
+    const boards: string[] = [];
+    for (const [i, session] of sessions.entries()) {
+      const { text } = await call(session, 'canvas_draw', { elements: [{ id: `s${i}`, type: 'rectangle', x: 0, y: 0, label: `Session ${i}` }] });
+      expect(text).toMatch(/opened with (xdg-)?open/);
+      const own = await call(session, 'canvas_open', { open: false });
+      expect(own.text).toContain(`[Session ${i}]`);
+      expect(own.text).not.toContain(`[Session ${1 - i}]`);
+      boards.push(boardId(own.text));
+    }
+    expect(boards[0]).not.toBe(boards[1]);
+    // The opener runs detached; wait for both launches to land.
+    const read = () => (existsSync(opened) ? readFileSync(opened, 'utf8').trim().split('\n') : []);
+    for (let i = 0; i < 50 && read().length < 2; i++) await new Promise((r) => setTimeout(r, 100));
+    const urls = read();
+    expect(urls.map((u) => /\/c\/([a-z0-9-]+)\?token=/.exec(u)?.[1]).sort()).toEqual([...boards].sort());
   });
 
   it('inside an editor without a panel host it opens nothing and tells the agent not to use a browser', async () => {
