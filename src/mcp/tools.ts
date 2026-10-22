@@ -1,0 +1,448 @@
+import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, extname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { CanvasClient, CanvasError } from '../canvas/client.js';
+import { describeChanges, describeScene } from '../shared/describe.js';
+import { ELEMENT_SPEC_FIELDS, buildElements, deleteElements, type ElementSpec } from '../shared/elements.js';
+import type { ChangesResponse, ExElement, MermaidResult, ScreenshotResult } from '../shared/protocol.js';
+import { GUIDE } from './guide.js';
+import { openViewer } from './open.js';
+import { stripNulls, validate, type Schema } from './schema.js';
+import type { CanvasRef, Session } from './session.js';
+
+export type Content = { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string };
+export interface ToolResult {
+  content: Content[];
+  isError?: boolean;
+}
+type Args = Record<string, unknown>;
+
+export interface Tool {
+  name: string;
+  description: string;
+  inputSchema: Schema & { type: 'object' };
+  run(args: Args, ctx: ToolContext): Promise<ToolResult | string>;
+  /** canvas_read/canvas_guide don't get the "human changed things" footer. */
+  quiet?: boolean;
+}
+
+export class ToolError extends Error {}
+
+const debug = (msg: string): void => {
+  if (process.env.WHITEBOARD_DEBUG === '1') process.stderr.write(`[whiteboard-mcp] ${msg}\n`);
+};
+
+/** Shared by the MCP server and CLI `call`: lazy daemon connection plus the session. */
+export class ToolContext {
+  private client?: Promise<CanvasClient>;
+  private readonly ensured = new Set<string>();
+
+  constructor(readonly session: Session, private readonly connectOpts: Parameters<typeof CanvasClient.connect>[0] = {}) {}
+
+  connect(): Promise<CanvasClient> {
+    this.client ??= CanvasClient.connect({ autoStart: true, ...this.connectOpts }).catch((err: unknown) => {
+      this.client = undefined;
+      throw err;
+    });
+    return this.client;
+  }
+
+  get connected(): boolean {
+    return this.client !== undefined;
+  }
+
+  /** The session's current board, created on first use. */
+  async canvas(ref = this.session.canvas()): Promise<{ client: CanvasClient; ref: CanvasRef }> {
+    await this.session.ready();
+    const client = await this.connect();
+    if (!this.ensured.has(ref.id)) {
+      await client.ensureCanvas(ref.id, ref.title);
+      this.ensured.add(ref.id);
+    }
+    return { client, ref };
+  }
+}
+
+const str = (description: string): Schema => ({ type: 'string', description });
+const num = (description: string): Schema => ({ type: 'number', description });
+const bool = (description: string): Schema => ({ type: 'boolean', description });
+const ids = (description = 'Element ids'): Schema => ({ type: 'array', items: { type: 'string' }, description });
+const obj = (properties: Record<string, Schema>, required?: string[]): Schema & { type: 'object' } => ({ type: 'object', properties, ...(required ? { required } : {}) });
+
+const SHAPE_TYPES = ['rectangle', 'ellipse', 'diamond', 'text', 'arrow', 'line', 'frame', 'freedraw'];
+const FIELD_SCHEMA: Record<keyof ElementSpec, Omit<Schema, 'description'>> = {
+  id: { type: 'string' },
+  type: { type: 'string', enum: SHAPE_TYPES },
+  x: { type: 'number' },
+  y: { type: 'number' },
+  width: { type: 'number' },
+  height: { type: 'number' },
+  label: { type: 'string' },
+  text: { type: 'string' },
+  from: { type: 'string' },
+  to: { type: 'string' },
+  points: { type: 'array', items: { type: 'array', items: { type: 'number' } } },
+  strokeColor: { type: 'string' },
+  backgroundColor: { type: 'string' },
+  fillStyle: { type: 'string' },
+  strokeStyle: { type: 'string' },
+  strokeWidth: { type: 'number' },
+  roughness: { type: 'number' },
+  opacity: { type: 'number' },
+  fontSize: { type: 'number' },
+  fontFamily: { type: 'string' },
+  textAlign: { type: 'string' },
+  rounded: { type: 'boolean' },
+  startArrowhead: { type: 'string' },
+  endArrowhead: { type: 'string' },
+  frame: { type: 'string' },
+  groupIds: { type: 'array', items: { type: 'string' } },
+  locked: { type: 'boolean' },
+  link: { type: 'string' },
+};
+
+const trimDesc = (s: string, max = 110): string => (s.length <= max ? s : `${s.slice(0, max - 1).replace(/\s+\S*$/, '')}…`);
+
+export const ELEMENT_SCHEMA: Schema = {
+  type: 'object',
+  properties: Object.fromEntries(
+    (Object.keys(FIELD_SCHEMA) as Array<keyof ElementSpec>).map((k) => {
+      const desc = ELEMENT_SPEC_FIELDS[k];
+      return [k, { ...FIELD_SCHEMA[k], ...(desc && !FIELD_SCHEMA[k].enum ? { description: trimDesc(desc) } : {}) } as Schema];
+    }),
+  ),
+};
+
+const MAX_ELEMENTS = 200;
+
+function text(...lines: Array<string | undefined | false>): string {
+  return lines.filter((l): l is string => typeof l === 'string' && l.length > 0).join('\n');
+}
+
+function noViewerHint(url: string): string {
+  return `No viewer is open, so the human can't see this yet. Call canvas_open (or ask them to open ${url}).`;
+}
+
+function withLabels(elements: ExElement[]): Map<string, string> {
+  const labels = new Map<string, string>();
+  for (const el of elements) {
+    if (el.type === 'text' && typeof el.containerId === 'string' && typeof el.text === 'string') labels.set(el.containerId, el.text);
+  }
+  return labels;
+}
+
+const round = (n: unknown): number | undefined => (typeof n === 'number' ? Math.round(n) : undefined);
+
+function trimmedJson(elements: ExElement[], only?: string[]): string {
+  const labels = withLabels(elements);
+  const want = only?.length ? new Set(only) : undefined;
+  const out = elements
+    .filter((el) => !(el.type === 'text' && typeof el.containerId === 'string') && (!want || want.has(el.id)))
+    .map((el) => {
+      const binding = (b: unknown): string | undefined => (b && typeof b === 'object' && 'elementId' in b ? String((b as { elementId: unknown }).elementId) : undefined);
+      return Object.fromEntries(
+        Object.entries({
+          id: el.id,
+          type: el.type,
+          x: round(el.x),
+          y: round(el.y),
+          width: round(el.width),
+          height: round(el.height),
+          text: el.type === 'text' ? el.text : undefined,
+          label: labels.get(el.id),
+          strokeColor: el.strokeColor,
+          backgroundColor: el.backgroundColor === 'transparent' ? undefined : el.backgroundColor,
+          from: binding(el.startBinding),
+          to: binding(el.endBinding),
+          frame: el.frameId ?? undefined,
+        }).filter(([, v]) => v !== undefined && v !== null),
+      );
+    });
+  return JSON.stringify(out);
+}
+
+/** Element ids a change refers to, with bound label text folded into its container. */
+function humanTouched(ch: ChangesResponse): Set<string> {
+  const byId = new Map(ch.elements.map((el) => [el.id, el]));
+  const touched = new Set<string>();
+  for (const c of ch.changes) {
+    if (c.actor !== 'human') continue;
+    const container = byId.get(c.id)?.containerId;
+    touched.add(typeof container === 'string' ? container : c.id);
+  }
+  return touched;
+}
+
+function unreadNotes(ch: ChangesResponse, since: number): ChangesResponse['notes'] {
+  return ch.notes.filter((n) => n.rev > since);
+}
+
+const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+export async function humanActivityLine(ctx: ToolContext): Promise<string | undefined> {
+  if (!ctx.connected) return undefined;
+  const { client, ref } = await ctx.canvas();
+  const since = ctx.session.lastReadRev(ref.id);
+  const ch = await client.changes(ref.id, since);
+  if (ch.full && since > 0) return '⚑ The canvas changed a lot since your last canvas_read; call canvas_read to catch up.';
+  const changed = humanTouched(ch).size;
+  const notes = unreadNotes(ch, since).length;
+  if (!changed && !notes) return undefined;
+  const parts = [changed && `changed ${plural(changed, 'element')}`, notes && `left ${plural(notes, 'note')}`].filter(Boolean);
+  return `⚑ The human ${parts.join(' and ')} since your last canvas_read.`;
+}
+
+function allowedExportRoots(workspace: string): string[] {
+  const roots = [workspace, tmpdir(), process.env.WHITEBOARD_EXPORT_DIR].filter((r): r is string => !!r).map((r) => resolve(r));
+  const real = roots.flatMap((r) => {
+    try {
+      return [realpathSync(r)];
+    } catch {
+      return [];
+    }
+  });
+  return [...new Set([...roots, ...real])];
+}
+
+const inside = (root: string, target: string): boolean => {
+  const rel = relative(root, target);
+  return rel === '' || (!rel.startsWith(`..${sep}`) && rel !== '..' && !isAbsolute(rel));
+};
+
+export function resolveExportPath(path: string, workspace: string, ext: string): string {
+  let target = resolve(workspace, path);
+  if (!extname(target)) target += ext;
+  const roots = allowedExportRoots(workspace);
+  const refuse = (): never => {
+    throw new ToolError(`Refusing to write ${target}: exports must stay inside the workspace (${workspace}), the temp dir, or WHITEBOARD_EXPORT_DIR.`);
+  };
+  if (!roots.some((r) => inside(r, target))) refuse();
+  mkdirSync(dirname(target), { recursive: true });
+  const real = resolve(realpathSync(dirname(target)), target.slice(dirname(target).length + 1));
+  if (!roots.some((r) => inside(r, real))) refuse();
+  return target;
+}
+
+async function viewerRequest<T>(ctx: ToolContext, type: 'screenshot' | 'mermaid' | 'focus', payload: unknown, timeoutMs?: number): Promise<{ result: T; ref: CanvasRef; client: CanvasClient }> {
+  const { client, ref } = await ctx.canvas();
+  try {
+    return { result: await client.request<T>(ref.id, type, payload, timeoutMs), ref, client };
+  } catch (err) {
+    if (err instanceof CanvasError && err.code === 'no_viewer') throw new ToolError(`${type} needs the canvas open in a browser: call canvas_open first (it opens ${client.viewerUrl(ref.id)}).`);
+    if (err instanceof CanvasError && err.code === 'timeout') throw new ToolError(`The viewer did not answer the ${type} request in time. Is the canvas tab still open? Try canvas_open.`);
+    throw err;
+  }
+}
+
+async function drawOnce(client: CanvasClient, ref: CanvasRef, specs: ElementSpec[]) {
+  const snap = await client.snapshot(ref.id);
+  const built = buildElements(specs, snap.elements);
+  const res = await client.apply(ref.id, built.elements, { actor: 'agent' });
+  return { snap, built, res };
+}
+
+export const TOOLS: Tool[] = [
+  {
+    name: 'canvas_open',
+    description: "Open the live canvas (this workspace's board by default) in the human's browser. Returns its URL, viewer count, a scene summary and other boards.",
+    inputSchema: obj({
+      name: str('Board name; omit for the workspace board'),
+      fresh: bool('Clear the board first'),
+      open: bool('Open a browser tab if no viewer is connected (default true)'),
+    }),
+    async run(args, ctx) {
+      await ctx.session.ready();
+      const client = await ctx.connect();
+      const boards = await client.list();
+      const resolved = ctx.session.resolveCanvas(args.name as string | undefined, boards.map((b) => b.id));
+      const ref = { ...resolved, title: boards.find((b) => b.id === resolved.id)?.title ?? resolved.title };
+      await ctx.canvas(ref);
+      ctx.session.setCurrent(ref);
+      if (args.fresh) await client.clear(ref.id);
+      const snap = await client.snapshot(ref.id);
+      const url = client.viewerUrl(ref.id);
+      let opened = '';
+      if (args.open !== false && snap.viewers === 0) opened = ` (${openViewer(url)})`;
+      const others = boards.filter((b) => b.id !== ref.id).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 8);
+      return text(
+        `Board "${ref.title}" (${ref.id}): ${url}`,
+        `Viewers: ${snap.viewers}${opened}`,
+        snap.elements.length ? describeScene(snap.elements, { maxElements: 12 }) : 'The board is empty.',
+        others.length > 0 && `Other boards: ${others.map((b) => `${b.title} [${b.id}, ${b.elementCount} el]`).join('; ')}`,
+      );
+    },
+  },
+  {
+    name: 'canvas_read',
+    description: 'Read the board: scene description (or JSON), then what the human changed and noted since your last read.',
+    inputSchema: obj({
+      ids: ids('Only describe these elements'),
+      format: { type: 'string', enum: ['summary', 'json'], description: 'summary (default) or json' },
+    }),
+    quiet: true,
+    async run(args, ctx) {
+      const { client, ref } = await ctx.canvas();
+      const only = args.ids as string[] | undefined;
+      const snap = await client.snapshot(ref.id);
+      const since = ctx.session.lastReadRev(ref.id);
+      const ch = await client.changes(ref.id, since);
+      const scene = args.format === 'json' ? trimmedJson(snap.elements, only) : describeScene(snap.elements, only?.length ? { ids: only } : {});
+      // A full (log-truncated) answer on the first read is just the scene above, not news.
+      const human = ch.full ? (since > 0 ? 'too many to list; the scene above is current.' : '') : describeChanges(ch.changes, [...snap.elements, ...ch.elements], { actor: 'human' });
+      const notes = unreadNotes(ch, since);
+      ctx.session.setLastReadRev(ref.id, ch.rev);
+      return text(
+        `Board "${ref.title}" rev ${ch.rev}, ${plural(snap.viewers, 'viewer')}.`,
+        scene,
+        human ? `Human changes since your last read:\n${human}` : 'No human changes since your last read.',
+        notes.length > 0 && `Notes from the human:\n${notes.map((n) => `- ${n.text}`).join('\n')}`,
+      );
+    },
+  },
+  {
+    name: 'canvas_draw',
+    description: 'Create or update elements. Re-using an id updates only the given fields. Arrows bind with from/to element ids.',
+    inputSchema: obj({ elements: { type: 'array', items: ELEMENT_SCHEMA, maxItems: MAX_ELEMENTS, description: 'Element specs' } }, ['elements']),
+    async run(args, ctx) {
+      const specs = args.elements as ElementSpec[];
+      if (!specs.length) throw new ToolError('elements is empty: pass at least one element spec.');
+      const { client, ref } = await ctx.canvas();
+      let { snap, built, res } = await drawOnce(client, ref, specs);
+      if (res.stale.length) ({ snap, built, res } = await drawOnce(client, ref, specs));
+      const before = new Set(snap.elements.map((el) => el.id));
+      const created = built.ids.filter((id) => !before.has(id));
+      const updated = built.ids.filter((id) => before.has(id));
+      const merged = new Map(snap.elements.map((el) => [el.id, el]));
+      for (const el of built.elements) {
+        if (el.isDeleted) merged.delete(el.id);
+        else merged.set(el.id, el);
+      }
+      return text(
+        created.length > 0 && `Created: ${created.join(', ')}`,
+        updated.length > 0 && `Updated: ${updated.join(', ')}`,
+        res.stale.length > 0 && `Not applied (the human edited them at the same moment, retry): ${res.stale.join(', ')}`,
+        built.warnings.length > 0 && `Warnings:\n${built.warnings.map((w) => `- ${w}`).join('\n')}`,
+        built.ids.length > 0 && describeScene([...merged.values()], { ids: built.ids }),
+        snap.viewers === 0 && noViewerHint(client.viewerUrl(ref.id)),
+      );
+    },
+  },
+  {
+    name: 'canvas_delete',
+    description: 'Delete elements by id (arrows bound to them are detached), or everything with all:true.',
+    inputSchema: obj({ ids: ids(), all: bool('Clear the whole board') }),
+    async run(args, ctx) {
+      const list = (args.ids as string[] | undefined) ?? [];
+      if (!args.all && !list.length) throw new ToolError('Pass ids (element ids to delete) or all:true.');
+      const { client, ref } = await ctx.canvas();
+      if (args.all) {
+        await client.clear(ref.id);
+        return `Cleared board "${ref.title}".`;
+      }
+      const snap = await client.snapshot(ref.id);
+      const del = deleteElements(list, snap.elements);
+      if (del.elements.length) await client.apply(ref.id, del.elements, { actor: 'agent' });
+      return text(del.ids.length ? `Deleted: ${del.ids.join(', ')}` : 'Nothing deleted.', del.warnings.length > 0 && `Warnings:\n${del.warnings.map((w) => `- ${w}`).join('\n')}`);
+    },
+  },
+  {
+    name: 'canvas_focus',
+    description: "Scroll/zoom the human's view to elements (whole scene if no ids); highlight pulses them. Use it to point while explaining.",
+    inputSchema: obj({ ids: ids(), highlight: bool('Pulse a highlight around them'), zoom: num('Zoom level, e.g. 1') }),
+    async run(args, ctx) {
+      await viewerRequest(ctx, 'focus', { ids: args.ids, highlight: args.highlight, zoom: args.zoom });
+      const target = (args.ids as string[] | undefined)?.join(', ') || 'the whole scene';
+      return `Focused on ${target}${args.highlight ? ' (highlighted)' : ''}.`;
+    },
+  },
+  {
+    name: 'canvas_screenshot',
+    description: 'PNG of the board as the viewer renders it, to check your layout. Needs an open viewer.',
+    inputSchema: obj({ ids: ids('Only these elements'), dark: bool('Dark theme') }),
+    async run(args, ctx) {
+      const { result, ref } = await viewerRequest<ScreenshotResult>(ctx, 'screenshot', { ids: args.ids, dark: args.dark });
+      return { content: [{ type: 'image', data: result.base64, mimeType: 'image/png' }, { type: 'text', text: `Screenshot of "${ref.title}", ${result.width}×${result.height}px.` }] };
+    },
+  },
+  {
+    name: 'canvas_mermaid',
+    description: 'Convert a Mermaid definition (flowchart, sequence, class…) into editable elements. Needs an open viewer.',
+    inputSchema: obj({ definition: str('Mermaid source'), x: num('Left edge'), y: num('Top edge') }, ['definition']),
+    async run(args, ctx) {
+      const { result, ref, client } = await viewerRequest<MermaidResult>(ctx, 'mermaid', { definition: args.definition, x: args.x, y: args.y }, 30_000);
+      const snap = await client.snapshot(ref.id);
+      return text(`Created ${plural(result.ids.length, 'element')} from mermaid.`, result.ids.length > 0 && describeScene(snap.elements, { ids: result.ids }));
+    },
+  },
+  {
+    name: 'canvas_export',
+    description: 'Save the board to a file: .excalidraw JSON (default) or PNG. Relative paths resolve against the workspace.',
+    inputSchema: obj({ path: str('File path inside the workspace or temp dir'), format: { type: 'string', enum: ['excalidraw', 'png'], description: 'Default from extension, else excalidraw' } }, ['path']),
+    async run(args, ctx) {
+      await ctx.session.ready();
+      const path = args.path as string;
+      const format = (args.format as string | undefined) ?? (extname(path).toLowerCase() === '.png' ? 'png' : 'excalidraw');
+      const target = resolveExportPath(path, ctx.session.workspace, format === 'png' ? '.png' : '.excalidraw');
+      if (format === 'png') {
+        const { result } = await viewerRequest<ScreenshotResult>(ctx, 'screenshot', {});
+        writeFileSync(target, Buffer.from(result.base64, 'base64'));
+        return `Wrote ${target} (${result.width}×${result.height}px PNG).`;
+      }
+      const { client, ref } = await ctx.canvas();
+      const snap = await client.snapshot(ref.id);
+      const doc = { type: 'excalidraw', version: 2, source: 'whiteboard-mcp', elements: snap.elements, appState: { viewBackgroundColor: '#ffffff' }, files: snap.files };
+      writeFileSync(target, `${JSON.stringify(doc, null, 2)}\n`);
+      return `Wrote ${target} (${plural(snap.elements.length, 'element')}).`;
+    },
+  },
+  {
+    name: 'canvas_guide',
+    description: 'How to explain well on this canvas: layout, sizes, colours, the live explain loop. Read once before your first drawing.',
+    inputSchema: obj({}),
+    quiet: true,
+    async run() {
+      return GUIDE;
+    },
+  },
+];
+
+const BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
+
+export function getTool(name: string): Tool | undefined {
+  return BY_NAME.get(name);
+}
+
+export function toolList(): Array<Pick<Tool, 'name' | 'description' | 'inputSchema'>> {
+  return TOOLS.map(({ name, description, inputSchema }) => ({ name, description, inputSchema }));
+}
+
+function errorText(err: unknown): string {
+  if (err instanceof ToolError) return err.message;
+  if (err instanceof CanvasError) return `Canvas error (${err.code}): ${err.message}`;
+  const msg = err instanceof Error ? err.message : String(err);
+  return err instanceof TypeError && /fetch failed/i.test(msg) ? `Canvas daemon unreachable (${msg}). Run \`whiteboard-mcp status\` to check it.` : `Failed: ${msg}`;
+}
+
+/** Validates and runs a tool; every failure becomes an `isError` result. */
+export async function callTool(tool: Tool, rawArgs: unknown, ctx: ToolContext): Promise<ToolResult> {
+  const args = stripNulls(rawArgs ?? {});
+  const invalid = validate(tool.inputSchema, args);
+  if (invalid) return { content: [{ type: 'text', text: `Invalid arguments: ${invalid}.` }], isError: true };
+  let result: ToolResult;
+  try {
+    const out = await tool.run(args as Args, ctx);
+    result = typeof out === 'string' ? { content: [{ type: 'text', text: out }] } : out;
+  } catch (err) {
+    debug(`${tool.name} failed: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`);
+    result = { content: [{ type: 'text', text: errorText(err) }], isError: true };
+  }
+  if (!tool.quiet) {
+    try {
+      const line = await humanActivityLine(ctx);
+      if (line) result.content.push({ type: 'text', text: line });
+    } catch (err) {
+      debug(`piggyback failed: ${String(err)}`);
+    }
+  }
+  return result;
+}
