@@ -126,7 +126,7 @@ beforeEach(() => {
 afterEach(async () => {
   for (const ws of sockets.splice(0)) ws.terminate();
   await Promise.all(daemons.splice(0).map((d) => d.close()));
-  rmSync(root, { recursive: true, force: true });
+  rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 });
 
 describe('http security', () => {

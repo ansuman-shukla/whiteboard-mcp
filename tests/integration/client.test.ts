@@ -89,9 +89,11 @@ afterEach(async () => {
   for (const pid of pids) if (alive(pid)) process.kill(pid, 'SIGKILL');
 });
 
-afterAll(() => {
+afterAll(async () => {
   for (const pid of pids) if (alive(pid)) process.kill(pid, 'SIGKILL');
-  for (const dir of roots) rmSync(dir, { recursive: true, force: true });
+  // Windows releases a killed process's open files a moment later (EBUSY), so wait and retry.
+  await until(() => [...pids].every((pid) => !alive(pid))).catch(() => {});
+  for (const dir of roots) rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 });
 
 describe('daemon discovery and autostart', () => {

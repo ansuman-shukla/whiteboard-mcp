@@ -94,7 +94,7 @@ afterAll(async () => {
   } catch {
     // daemon never started or already gone
   }
-  rmSync(root, { recursive: true, force: true });
+  rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 });
 
 describe('MCP server over stdio (SDK client)', () => {
