@@ -141,10 +141,12 @@ export type ClientMessage =
 
 /**
  * Panel hosts (IDE extensions that show boards beside the chat) connect to `API.hostWs`.
- * The daemon asks the host whose folders contain the board's workspace to show it.
+ * A show request goes to the host whose `hostId` equals the request's `host` hint (the chat's own
+ * window), else to a host whose folders contain the board's workspace, never to an unrelated window.
  */
 export type HostMessage =
-  | { t: 'hello'; folders: string[]; focused: boolean }
+  /** `hostId` identifies the editor window, e.g. its extension-host pid; agents in it pass the same id as `host`. */
+  | { t: 'hello'; folders: string[]; focused: boolean; hostId?: string }
   | { t: 'state'; folders?: string[]; focused?: boolean }
   | { t: 'shown'; reqId: string; ok: boolean; error?: string };
 
@@ -152,6 +154,8 @@ export type ServerHostMessage = { t: 'show'; reqId: string; canvasId: string; ti
 
 export interface ShowRequest {
   workspace?: string;
+  /** The `hostId` of the window the agent runs in, when known. */
+  host?: string;
 }
 
 export const API = {

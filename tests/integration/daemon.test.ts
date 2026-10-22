@@ -486,7 +486,7 @@ describe('lifecycle', () => {
 });
 
 describe('panel hosts', () => {
-  async function host(d: Daemon, hello?: { folders: string[]; focused: boolean }, opts: WebSocket.ClientOptions = {}, token = d.token) {
+  async function host(d: Daemon, hello?: { folders: string[]; focused: boolean; hostId?: string }, opts: WebSocket.ClientOptions = {}, token = d.token) {
     const ws = new WebSocket(`ws://127.0.0.1:${d.port}/ws/host?token=${token}`, opts);
     sockets.push(ws);
     await new Promise((resolve, reject) => {
@@ -502,25 +502,105 @@ describe('panel hosts', () => {
   }
   const board = (d: Daemon, id: string, workspace: string) => apiJson(d, `/api/canvases/${id}`, { method: 'PUT', body: { title: 'How MCP works', workspace, chat: 'chat-1' } });
 
-  it('stores board metadata and shows it in the window of its workspace, else the focused one', async () => {
+  const showTo = (d: Daemon, body: { workspace?: string; host?: string }) => apiJson(d, '/api/canvases/mcp/show', { body });
+
+  it('stores board metadata and shows it in the window of its workspace', async () => {
     const d = await start();
     expect((await board(d, 'mcp', '/work/a')).body).toMatchObject({ title: 'How MCP works', workspace: '/work/a', chat: 'chat-1' });
     const a = await host(d, { folders: ['/work/a'], focused: false });
     const b = await host(d, { folders: ['/work/b'], focused: true });
 
-    const first = apiJson(d, '/api/canvases/mcp/show', { body: { workspace: '/work/a' } });
+    const first = showTo(d, { workspace: '/work/a/sub' });
     await until(() => a.shows.length === 1);
     expect(a.shows[0]).toMatchObject({ t: 'show', canvasId: 'mcp', title: 'How MCP works' });
-    expect(b.shows).toEqual([]);
+    b.reply(a.shows[0]!.reqId); // a reply from the wrong host is ignored
+    await sleep(30);
+    expect(d.stats().pending).toBe(1);
     a.reply(a.shows[0]!.reqId);
     expect(await first).toEqual({ status: 200, body: { shown: true } });
+    expect(b.shows).toEqual([]);
+  });
 
-    const second = apiJson(d, '/api/canvases/mcp/show', { body: { workspace: '/work/a-sibling' } });
+  it('never shows a board in an unrelated window: no hint and no folder match answers 409', async () => {
+    // The incident: the chat's own window had no host, so the only connected window (another folder) took over.
+    const d = await start();
+    await board(d, 'mcp', '/Users/me/Documents/ishara');
+    const unrelated = await host(d, { folders: ['/Users/me/work/devin-switch'], focused: true, hostId: '45824' });
+    expect(await showTo(d, { workspace: '/Users/me/Documents/ishara' })).toEqual({ status: 409, body: { error: 'no_host' } });
+    expect(await showTo(d, { workspace: '/Users/me/Documents/ishara', host: '64248' })).toEqual({ status: 409, body: { error: 'no_host' } });
+    expect(await showTo(d, {})).toEqual({ status: 409, body: { error: 'no_host' } });
+    expect(await showTo(d, { workspace: '/Users/me/work/devin-switch-sibling' })).toEqual({ status: 409, body: { error: 'no_host' } });
+    await sleep(30);
+    expect(unrelated.shows).toEqual([]);
+    expect(d.stats().pending).toBe(0);
+  });
+
+  it('the host hint beats folder and focus, and tells two windows of one folder apart', async () => {
+    const d = await start();
+    await board(d, 'mcp', '/w');
+    const a = await host(d, { folders: ['/w'], focused: true, hostId: '111' });
+    const b = await host(d, { folders: ['/w'], focused: false, hostId: '222' });
+    const c = await host(d, { folders: [], focused: false, hostId: '333' });
+    const answer = async (target: typeof a, body: { workspace?: string; host?: string }) => {
+      const before = [a, b, c].map((h) => h.shows.length);
+      const pending = showTo(d, body);
+      await until(() => target.shows.length > before[[a, b, c].indexOf(target)]!);
+      target.reply(target.shows.at(-1)!.reqId);
+      expect((await pending).status).toBe(200);
+      return [a, b, c].map((h, i) => h.shows.length - before[i]!);
+    };
+    expect(await answer(b, { workspace: '/w', host: '222' })).toEqual([0, 1, 0]);
+    expect(await answer(a, { workspace: '/w', host: '111' })).toEqual([1, 0, 0]);
+    // The chat's window wins even when it shows another folder (or none).
+    expect(await answer(c, { workspace: '/w', host: '333' })).toEqual([0, 0, 1]);
+    expect(await answer(a, { workspace: '/w' })).toEqual([1, 0, 0]);
+  });
+
+  it('a hint for a window without a host never lands in another identified window, only in old hosts of the folder', async () => {
+    const d = await start();
+    await board(d, 'mcp', '/w');
+    const other = await host(d, { folders: ['/w'], focused: true, hostId: '222' });
+    expect(await showTo(d, { workspace: '/w', host: '999' })).toEqual({ status: 409, body: { error: 'no_host' } });
+    const old = await host(d, { folders: ['/w'], focused: false });
+    const pending = showTo(d, { workspace: '/w', host: '999' });
+    await until(() => old.shows.length === 1);
+    old.reply(old.shows[0]!.reqId);
+    expect((await pending).status).toBe(200);
+    expect(other.shows).toEqual([]);
+  });
+
+  it('among windows of the folder without a hint: focused first, then the most recently active', async () => {
+    const d = await start();
+    await board(d, 'mcp', '/w');
+    const a = await host(d, { folders: ['/w'], focused: false });
+    const b = await host(d, { folders: ['/w'], focused: false });
+    const first = showTo(d, { workspace: '/w' });
     await until(() => b.shows.length === 1);
-    a.reply(b.shows[0]!.reqId); // a reply from the wrong host is ignored
     b.reply(b.shows[0]!.reqId);
-    expect((await second).status).toBe(200);
+    await first;
+    a.ws.send(JSON.stringify({ t: 'state', focused: false })); // a becomes the most recently active
+    await sleep(30);
+    const second = showTo(d, { workspace: '/w' });
+    await until(() => a.shows.length === 1);
+    a.reply(a.shows[0]!.reqId);
+    await second;
+    b.ws.send(JSON.stringify({ t: 'state', focused: true }));
+    a.ws.send(JSON.stringify({ t: 'state', folders: ['/w'] }));
+    await sleep(30);
+    const third = showTo(d, { workspace: '/w' });
+    await until(() => b.shows.length === 2);
+    b.reply(b.shows[1]!.reqId);
+    await third;
     expect(a.shows).toHaveLength(1);
+    a.ws.close();
+    b.ws.close();
+    await until(() => d.stats().hosts === 0 && d.stats().pending === 0);
+  });
+
+  it('rejects a malformed host hint', async () => {
+    const d = await start();
+    await board(d, 'mcp', '/w');
+    expect((await showTo(d, { workspace: '/w', host: 42 as unknown as string })).status).toBe(400);
   });
 
   it('answers 409 without a host, 502 on failure or disconnect, 504 on timeout, 404 for unknown boards', async () => {
