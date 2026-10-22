@@ -1,7 +1,8 @@
 import { mkdirSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { join } from 'node:path';
 import { sha6, slug } from '../shared/ids.js';
 import { CANVAS_ID_PATTERN, type BinaryFile, type ExElement, type SavedBoard, type SavedSummary } from '../shared/protocol.js';
+import { matchTerms, oneLine, searchTerms, textLines, type Match } from './search.js';
 import { NotFoundError, ValidationError, referencedFileIds, validateElements } from './store.js';
 
 export interface SavedStoreOptions {
@@ -25,14 +26,8 @@ interface Entry extends SavedSummary {
 export const MAX_SAVED_NAME_LENGTH = 200;
 const DEFAULT_LIMIT = 10;
 export const MAX_SEARCH_LIMIT = 50;
-const SNIPPET_LENGTH = 80;
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
-const oneLine = (s: string): string => s.replace(/\s+/g, ' ').trim();
-
-function textLines(elements: readonly ExElement[]): string[] {
-  return elements.flatMap((el) => (el.type === 'text' && typeof el.text === 'string' && el.text.trim() ? [oneLine(el.text)] : []));
-}
 
 /** A name is saved once per workspace: saving the same name again (any case) overwrites it. */
 export function savedId(name: string, workspace = ''): string {
@@ -91,16 +86,11 @@ export class SavedStore {
    * those of `workspace` first, then by how many words the name matches, then newest first.
    */
   search(query: string, workspace?: string, limit = DEFAULT_LIMIT): SavedSummary[] {
-    const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
-    const hits: Array<{ entry: Entry; here: boolean; nameHits: number; snippet?: string }> = [];
+    const terms = searchTerms(query);
+    const hits: Array<Match & { entry: Entry; here: boolean }> = [];
     for (const entry of this.entries().values()) {
-      const name = entry.name.toLowerCase();
-      const folder = entry.workspace ? basename(entry.workspace).toLowerCase() : '';
-      const lines = entry.lines.map((l) => l.toLowerCase());
-      if (!terms.every((t) => name.includes(t) || folder.includes(t) || entry.id.includes(t) || lines.some((l) => l.includes(t)))) continue;
-      const at = terms.length ? lines.findIndex((l) => terms.some((t) => !name.includes(t) && l.includes(t))) : -1;
-      const line = entry.lines[at];
-      hits.push({ entry, here: !!workspace && entry.workspace === workspace, nameHits: terms.filter((t) => name.includes(t)).length, ...(line ? { snippet: snippet(line) } : {}) });
+      const match = matchTerms(terms, entry);
+      if (match) hits.push({ ...match, entry, here: !!workspace && entry.workspace === workspace });
     }
     hits.sort((a, b) => Number(b.here) - Number(a.here) || b.nameHits - a.nameHits || b.entry.savedAt - a.entry.savedAt);
     return hits.slice(0, Math.max(1, Math.min(limit, MAX_SEARCH_LIMIT))).map((h) => ({ ...summary(h.entry), ...(h.snippet ? { snippet: h.snippet } : {}) }));
@@ -169,8 +159,4 @@ export class SavedStore {
 function summary(entry: Entry): SavedSummary {
   const { lines: _lines, ...rest } = entry;
   return rest;
-}
-
-function snippet(line: string): string {
-  return line.length <= SNIPPET_LENGTH ? line : `${line.slice(0, SNIPPET_LENGTH - 1)}…`;
 }
