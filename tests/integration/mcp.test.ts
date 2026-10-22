@@ -9,6 +9,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { ListRootsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import WebSocket from 'ws';
 
 const repo = fileURLToPath(new URL('../..', import.meta.url));
 const cli = join(repo, 'dist', 'cli.js');
@@ -31,10 +32,10 @@ function freePort(): Promise<number> {
   });
 }
 
-async function connect(opts: { cwd?: string; roots?: string } = {}): Promise<Client> {
+async function connect(opts: { cwd?: string; roots?: string; env?: Record<string, string> } = {}): Promise<Client> {
   const client = new Client({ name: 'test', version: '1.0.0' }, { capabilities: opts.roots ? { roots: { listChanged: true } } : {} });
   if (opts.roots) client.setRequestHandler(ListRootsRequestSchema, async () => ({ roots: [{ uri: pathToFileURL(opts.roots!).href, name: 'root' }] }));
-  await client.connect(new StdioClientTransport({ command: process.execPath, args: [cli], env, cwd: opts.cwd ?? workspace, stderr: 'ignore' }));
+  await client.connect(new StdioClientTransport({ command: process.execPath, args: [cli], env: { ...env, ...opts.env }, cwd: opts.cwd ?? workspace, stderr: 'ignore' }));
   clients.push(client);
   return client;
 }
@@ -80,7 +81,13 @@ beforeAll(async () => {
 afterAll(async () => {
   await Promise.allSettled(clients.map((c) => c.close()));
   try {
-    process.kill(daemon().pid, 'SIGTERM');
+    const { pid } = daemon();
+    process.kill(pid, 'SIGTERM');
+    // The daemon flushes boards on shutdown; removing its folder first races with that write.
+    for (let i = 0; i < 50; i++) {
+      process.kill(pid, 0);
+      await new Promise((r) => setTimeout(r, 100));
+    }
   } catch {
     // daemon never started or already gone
   }
@@ -104,13 +111,13 @@ describe('MCP server over stdio (SDK client)', () => {
     );
   });
 
-  it('opens the workspace board named after the directory', async () => {
-    const { text, result } = await call(client, 'canvas_open');
+  it("opens this chat's own board in the workspace and names it after the topic", async () => {
+    const { text, result } = await call(client, 'canvas_open', { title: 'How MCP works' });
     expect(result.isError).toBeFalsy();
-    canvasId = /\(([a-z0-9-]+)\):/.exec(text)![1]!;
-    expect(canvasId).toBe(`main-workspace-${sha6(workspace)}`);
-    expect(text).toContain(`/c/${canvasId}`);
-    expect(text).toMatch(/Viewers: 0 \(not opened/);
+    canvasId = /This chat's board: "How MCP works" \[([a-z0-9-]+)\]/.exec(text)![1]!;
+    expect(canvasId).toMatch(/^main-workspace-[0-9a-f]{6}$/);
+    expect(canvasId).not.toBe(`main-workspace-${sha6(workspace)}`);
+    expect(text).toContain('Nobody is watching the board');
   });
 
   it('draws two shapes and a labelled arrow, then reads them back', async () => {
@@ -123,7 +130,7 @@ describe('MCP server over stdio (SDK client)', () => {
     });
     expect(draw.result.isError).toBeFalsy();
     expect(draw.text).toContain('Created: a, b, ab');
-    expect(draw.text).toMatch(/No viewer is open.*canvas_open/);
+    expect(draw.text).toContain('Nobody is watching the board');
     const read = await call(client, 'canvas_read');
     expect(read.text).toContain('[Alpha]');
     expect(read.text).toContain('[Beta]');
@@ -158,10 +165,10 @@ describe('MCP server over stdio (SDK client)', () => {
     expect(read.text).toContain('[Alpha]');
   });
 
-  it('tells the model to call canvas_open when a viewer is needed', async () => {
+  it('explains that a screenshot needs the board on screen when nobody can be shown it', async () => {
     const shot = await call(client, 'canvas_screenshot');
     expect(shot.result.isError).toBe(true);
-    expect(shot.text).toContain('canvas_open');
+    expect(shot.text).toContain('needs the board on screen');
   });
 
   it('reports human changes once: piggyback on the next draw, details in canvas_read', async () => {
@@ -215,7 +222,7 @@ describe('MCP roots', () => {
     mkdirSync(rootDir, { recursive: true });
     const client = await connect({ roots: rootDir });
     const { text } = await call(client, 'canvas_open');
-    expect(text).toContain(`(roots-project-${sha6(rootDir)})`);
+    expect(text).toMatch(/\[roots-project-[0-9a-f]{6}\]/);
   });
 });
 
@@ -251,5 +258,85 @@ describe('raw stdio', () => {
     expect(byId.get(5)!.result).toEqual({ prompts: [] });
     expect(byId.get(null)!.error!.code).toBe(-32700);
     expect(frames).toHaveLength(6);
+  });
+});
+
+const boardId = (text: string): string => /board[^[]*\[([a-z0-9-]+)\]/i.exec(text)![1]!;
+
+describe('chat scope', () => {
+  it('gives each chat its own board, lists the workspace boards, and lets a chat read and draw on another one', async () => {
+    const first = await connect();
+    const firstId = boardId((await call(first, 'canvas_open', { title: 'Auth architecture' })).text);
+    await call(first, 'canvas_draw', { elements: [{ id: 'login', type: 'rectangle', x: 0, y: 0, label: 'Login' }] });
+
+    const second = await connect();
+    const opened = await call(second, 'canvas_open');
+    const secondId = boardId(opened.text);
+    expect(secondId).not.toBe(firstId);
+    expect(opened.text).toContain('The board is empty.');
+    expect(opened.text).toMatch(new RegExp(`Other boards in this workspace.*Auth architecture \\[${firstId}`));
+
+    const borrowed = await call(second, 'canvas_open', { board: 'auth architecture' });
+    expect(borrowed.text).toContain(`Board from another chat: "Auth architecture" [${firstId}]`);
+    expect(borrowed.text).toContain('[Login]');
+    await call(second, 'canvas_draw', { elements: [{ id: 'token', type: 'rectangle', x: 300, y: 0, label: 'Token' }] });
+    expect((await call(first, 'canvas_read')).text).toContain('[Token]');
+
+    const back = await call(second, 'canvas_open', { board: 'own' });
+    expect(boardId(back.text)).toBe(secondId);
+    expect((await call(second, 'canvas_open', { board: 'nope' })).result.isError).toBe(true);
+    const elsewhere = join(root, 'Other Space');
+    mkdirSync(elsewhere, { recursive: true });
+    const outsider = await connect({ cwd: elsewhere });
+    expect((await call(outsider, 'canvas_open')).text).not.toContain('Auth architecture');
+  });
+
+  it('separates chats that share one process by the host chat id in _meta', async () => {
+    const shared = await connect();
+    const open = async (chat: string) => boardId(((await shared.callTool({ name: 'canvas_open', arguments: {}, _meta: { sessionId: chat } })) as Result).content[0]!.text!);
+    const a = await open('chat-a');
+    const b = await open('chat-b');
+    expect(a).not.toBe(b);
+    expect(await open('chat-a')).toBe(a);
+  });
+
+  it('keeps a chat on its board across processes via WHITEBOARD_CHAT_COMMAND (account handoffs)', async () => {
+    const command = `${JSON.stringify(process.execPath)} -e "process.stdout.write('chat-42')"`;
+    const before = await connect({ env: { WHITEBOARD_CHAT_COMMAND: command } });
+    const id = boardId((await call(before, 'canvas_open', { title: 'Handoff' })).text);
+    await before.close();
+    const after = await connect({ env: { WHITEBOARD_CHAT_COMMAND: command } });
+    expect(boardId((await call(after, 'canvas_open')).text)).toBe(id);
+  });
+});
+
+describe('showing boards', () => {
+  it('asks the panel host of this workspace to show the board and never hands the agent a URL', async () => {
+    const client = await connect();
+    await call(client, 'canvas_open', { open: false });
+    const { port, token } = daemon();
+    const host = new WebSocket(`ws://127.0.0.1:${port}/ws/host?token=${token}`);
+    const shows: Array<{ reqId: string; canvasId: string }> = [];
+    host.on('message', (m) => {
+      const msg = JSON.parse(String(m));
+      shows.push(msg);
+      host.send(JSON.stringify({ t: 'shown', reqId: msg.reqId, ok: true }));
+    });
+    await new Promise((r) => host.once('open', r));
+    host.send(JSON.stringify({ t: 'hello', folders: [workspace], focused: false }));
+    await new Promise((r) => setTimeout(r, 100));
+    const drawn = await call(client, 'canvas_draw', { elements: [{ id: 'x', type: 'rectangle', x: 0, y: 0, label: 'Shown' }] });
+    host.close();
+    expect(drawn.text).toContain('Shown to the human beside the chat.');
+    expect(drawn.text).not.toMatch(/https?:\/\//);
+    expect(shows).toHaveLength(1);
+    expect(shows[0]!.canvasId).toBe(boardId((await call(client, 'canvas_open', { open: false })).text));
+  });
+
+  it('inside an editor without a panel host it opens nothing and tells the agent not to use a browser', async () => {
+    const client = await connect({ env: { WINDSURF_EXT_HOST_PID: '1', WHITEBOARD_OPEN: '' } });
+    const { text } = await call(client, 'canvas_open');
+    expect(text).toContain('No whiteboard panel is connected');
+    expect(text).toContain('Do not open board links in a browser or preview tool');
   });
 });

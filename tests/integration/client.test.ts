@@ -219,7 +219,8 @@ describe('api', () => {
   it('covers canvases, elements, changes, notes and errors', async () => {
     await useHome();
     const c = await connect();
-    expect(await c.ensureCanvas('demo', 'Demo')).toMatchObject({ id: 'demo', title: 'Demo', elementCount: 0 });
+    expect(await c.ensureCanvas('demo', { title: 'Demo', workspace: '/w', chat: 'c1' })).toMatchObject({ id: 'demo', title: 'Demo', elementCount: 0, workspace: '/w', chat: 'c1' });
+    expect(await c.show('demo', '/w')).toBe(false);
     expect(await c.apply('demo', [el('a'), el('b')], { actor: 'human' })).toEqual({ rev: 1, applied: ['a', 'b'], stale: [] });
     expect((await c.apply('demo', [el('a')])).stale).toEqual(['a']);
     const note = await c.addNote('demo', 'hello');
@@ -230,7 +231,7 @@ describe('api', () => {
       { rev: 1, actor: 'human', id: 'a', kind: 'created' },
       { rev: 1, actor: 'human', id: 'b', kind: 'created' },
     ]);
-    expect(await c.list()).toEqual([{ id: 'demo', title: 'Demo', elementCount: 2, updatedAt: expect.any(Number), viewers: 0 }]);
+    expect(await c.list()).toEqual([{ id: 'demo', title: 'Demo', elementCount: 2, updatedAt: expect.any(Number), viewers: 0, workspace: '/w', chat: 'c1' }]);
     expect(await c.clear('demo')).toEqual({ rev: 3, applied: ['a', 'b'], stale: [] });
     expect(await c.snapshot('demo')).toMatchObject({ id: 'demo', rev: 3, elements: [], notes: [note] });
     expect(c.viewerUrl('demo')).toBe(`http://127.0.0.1:${port}/c/demo?token=${c.token}`);

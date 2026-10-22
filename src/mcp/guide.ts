@@ -1,13 +1,14 @@
-export const INSTRUCTIONS = `Live Excalidraw whiteboard shared with the human: you draw, they watch in a browser tab, and they can draw back or leave notes. Use it whenever a picture explains better than text: architecture, request/data flows, sequences, state machines, data structures, comparisons, plans. Call canvas_guide once before your first drawing. Then canvas_open, and draw step by step with several small canvas_draw calls while narrating briefly in chat. When the human mentions the canvas, or a result says they changed something, call canvas_read to see their edits and notes.`;
+export const INSTRUCTIONS = `Live whiteboard shown to the human beside the chat: you draw, they watch and can draw back or leave notes. Use it whenever a picture explains better than text (architecture, flows, sequences, state machines, data structures, comparisons). Each chat has its own board; call canvas_guide once, then canvas_open with a topic title, and draw step by step while narrating briefly. The tools show the board to the human themselves: never open board links in a browser or preview tool. To build on a drawing from another chat in this workspace, canvas_open {board}. When the human mentions the board, call canvas_read.`;
 
 export const GUIDE = `# Explaining on the live canvas
 
 ## Loop
-1. canvas_open once. Plan: 3-8 boxes beat 30.
+1. canvas_open {title:"<topic>"} once: it shows this chat's board beside the chat. Never open board links in a browser or preview tool. Plan: 3-8 boxes beat 30.
 2. Draw in steps: one canvas_draw per idea (components, then flow, then notes), each followed by a sentence or two in chat that points at the canvas ("the blue boxes are services"). Keep chat short; the canvas carries the detail.
 3. canvas_focus {ids, highlight:true} to point at what you are talking about.
 4. canvas_screenshot once after the main layout to check overlaps and cut-off text.
 5. When the human says they drew or wrote something, canvas_read lists their changes and notes.
+6. Each chat has its own board. canvas_open lists this workspace's other boards; {board:"<title>"} opens one, {board:"own"} goes back.
 
 ## Elements
 - Short stable ids ("api", "db"). Re-sending an id updates only the fields you pass: move/restyle instead of redrawing.

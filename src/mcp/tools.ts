@@ -21,7 +21,7 @@ export interface Tool {
   name: string;
   description: string;
   inputSchema: Schema & { type: 'object' };
-  run(args: Args, ctx: ToolContext): Promise<ToolResult | string>;
+  run(args: Args, ctx: ChatContext): Promise<ToolResult | string>;
   /** canvas_read/canvas_guide don't get the "human changed things" footer. */
   quiet?: boolean;
 }
@@ -35,7 +35,7 @@ const debug = (msg: string): void => {
 /** Shared by the MCP server and CLI `call`: lazy daemon connection plus the session. */
 export class ToolContext {
   private client?: Promise<CanvasClient>;
-  private readonly ensured = new Set<string>();
+  readonly ensured = new Set<string>();
 
   constructor(readonly session: Session, private readonly connectOpts: Parameters<typeof CanvasClient.connect>[0] = {}) {}
 
@@ -51,15 +51,73 @@ export class ToolContext {
     return this.client !== undefined;
   }
 
-  /** The session's current board, created on first use. */
-  async canvas(ref = this.session.canvas()): Promise<{ client: CanvasClient; ref: CanvasRef }> {
+  /** Tool calls carry their chat, so one process can serve several chats. */
+  async forChat(meta?: unknown): Promise<ChatContext> {
     await this.session.ready();
+    return new ChatContext(this, await this.session.resolveChat(meta));
+  }
+}
+
+const IDE_ENV = ['WINDSURF_EXT_HOST_PID', 'VSCODE_PID', 'VSCODE_IPC_HOOK_CLI', 'CURSOR_TRACE_ID'];
+/** Agents running inside an editor should get the board in a panel, never a separate browser window. */
+const insideIde = (): boolean => IDE_ENV.some((k) => process.env[k]) || process.env.TERM_PROGRAM === 'vscode';
+const SHOW_WAIT_MS = 8000;
+
+export class ChatContext {
+  constructor(private readonly base: ToolContext, readonly chat: string) {}
+
+  get session(): Session {
+    return this.base.session;
+  }
+
+  get connected(): boolean {
+    return this.base.connected;
+  }
+
+  connect(): Promise<CanvasClient> {
+    return this.base.connect();
+  }
+
+  /** The board this chat is on (its own unless it opened another), created on first use. */
+  async canvas(ref = this.session.board(this.chat)): Promise<{ client: CanvasClient; ref: CanvasRef }> {
     const client = await this.connect();
-    if (!this.ensured.has(ref.id)) {
-      await client.ensureCanvas(ref.id, ref.title);
-      this.ensured.add(ref.id);
+    const own = ref.id === this.session.ownBoard(this.chat).id;
+    if (!this.base.ensured.has(ref.id) || ref.title) {
+      const summary = await client.ensureCanvas(ref.id, { ...(ref.title ? { title: ref.title } : {}), ...(own ? { workspace: this.session.workspace, chat: this.chat } : {}) });
+      this.base.ensured.add(ref.id);
+      ref = { id: ref.id, title: summary.title === ref.id ? '' : summary.title };
     }
     return { client, ref };
+  }
+
+  /**
+   * Puts the board in front of the human when nobody is watching it: an IDE panel host first;
+   * otherwise a browser, except inside an IDE where a stray browser window is never wanted.
+   */
+  async reveal(client: CanvasClient, ref: CanvasRef, viewers: number): Promise<string> {
+    return viewers > 0 ? '' : (await this.show(client, ref)).note;
+  }
+
+  private async show(client: CanvasClient, ref: CanvasRef): Promise<{ launched: boolean; note: string }> {
+    if (await client.show(ref.id, this.session.workspace).catch(() => false)) return { launched: true, note: 'Shown to the human beside the chat.' };
+    const url = client.viewerUrl(ref.id);
+    const mode = process.env.WHITEBOARD_OPEN?.trim();
+    if (mode === 'none') return { launched: false, note: `Nobody is watching the board; the human can open ${url}.` };
+    if (mode && mode !== 'auto') return { launched: true, note: `${openViewer(url)}.` };
+    if (!insideIde()) return { launched: true, note: `${openViewer(url)}.` };
+    return { launched: false, note: `No whiteboard panel is connected in the editor, so the human can't see the board yet. Ask them to open the whiteboard panel (or this link themselves: ${url}). Do not open board links in a browser or preview tool yourself.` };
+  }
+
+  /** Shows the board and waits until a viewer is connected; false if none arrives. */
+  async revealAndWait(client: CanvasClient, ref: CanvasRef): Promise<{ ok: boolean; note: string }> {
+    const { launched, note } = await this.show(client, ref);
+    if (!launched) return { ok: false, note };
+    const deadline = Date.now() + SHOW_WAIT_MS;
+    while (Date.now() < deadline) {
+      if ((await client.snapshot(ref.id)).viewers > 0) return { ok: true, note };
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    return { ok: false, note };
   }
 }
 
@@ -119,9 +177,7 @@ function text(...lines: Array<string | undefined | false>): string {
   return lines.filter((l): l is string => typeof l === 'string' && l.length > 0).join('\n');
 }
 
-function noViewerHint(url: string): string {
-  return `No viewer is open, so the human can't see this yet. Call canvas_open (or ask them to open ${url}).`;
-}
+const boardName = (ref: CanvasRef): string => (ref.title ? `"${ref.title}"` : 'this chat\'s board (untitled; name it with canvas_open {title})');
 
 function withLabels(elements: ExElement[]): Map<string, string> {
   const labels = new Map<string, string>();
@@ -179,10 +235,10 @@ function unreadNotes(ch: ChangesResponse, since: number): ChangesResponse['notes
 
 const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`;
 
-export async function humanActivityLine(ctx: ToolContext): Promise<string | undefined> {
+export async function humanActivityLine(ctx: ChatContext): Promise<string | undefined> {
   if (!ctx.connected) return undefined;
   const { client, ref } = await ctx.canvas();
-  const since = ctx.session.lastReadRev(ref.id);
+  const since = ctx.session.lastReadRev(ctx.chat, ref.id);
   const ch = await client.changes(ref.id, since);
   if (ch.full && since > 0) return '⚑ The canvas changed a lot since your last canvas_read; call canvas_read to catch up.';
   const changed = humanTouched(ch).size;
@@ -223,15 +279,19 @@ export function resolveExportPath(path: string, workspace: string, ext: string):
   return target;
 }
 
-async function viewerRequest<T>(ctx: ToolContext, type: 'screenshot' | 'mermaid' | 'focus', payload: unknown, timeoutMs?: number): Promise<{ result: T; ref: CanvasRef; client: CanvasClient }> {
+async function viewerRequest<T>(ctx: ChatContext, type: 'screenshot' | 'mermaid' | 'focus', payload: unknown, timeoutMs?: number): Promise<{ result: T; ref: CanvasRef; client: CanvasClient }> {
   const { client, ref } = await ctx.canvas();
+  const attempt = async () => ({ result: await client.request<T>(ref.id, type, payload, timeoutMs), ref, client });
   try {
-    return { result: await client.request<T>(ref.id, type, payload, timeoutMs), ref, client };
+    return await attempt();
   } catch (err) {
-    if (err instanceof CanvasError && err.code === 'no_viewer') throw new ToolError(`${type} needs the canvas open in a browser: call canvas_open first (it opens ${client.viewerUrl(ref.id)}).`);
-    if (err instanceof CanvasError && err.code === 'timeout') throw new ToolError(`The viewer did not answer the ${type} request in time. Is the canvas tab still open? Try canvas_open.`);
-    throw err;
+    if (err instanceof CanvasError && err.code === 'timeout') throw new ToolError(`The viewer did not answer the ${type} request in time. Is the whiteboard still open?`);
+    if (!(err instanceof CanvasError && err.code === 'no_viewer')) throw err;
   }
+  // Nobody is looking at the board: show it, then retry once.
+  const { ok, note } = await ctx.revealAndWait(client, ref);
+  if (!ok) throw new ToolError(`${type} needs the board on screen. ${note}`);
+  return attempt();
 }
 
 async function drawOnce(client: CanvasClient, ref: CanvasRef, specs: ElementSpec[]) {
@@ -244,31 +304,38 @@ async function drawOnce(client: CanvasClient, ref: CanvasRef, specs: ElementSpec
 export const TOOLS: Tool[] = [
   {
     name: 'canvas_open',
-    description: "Open the live canvas (this workspace's board by default) in the human's browser. Returns its URL, viewer count, a scene summary and other boards.",
+    description: "Show this chat's own whiteboard to the human beside the chat. Name it with title. To reuse another chat's drawing from this workspace, pass board.",
     inputSchema: obj({
-      name: str('Board name; omit for the workspace board'),
+      title: str("Name this chat's board after the topic, e.g. \"How MCP works\""),
+      board: str("Switch to another board of this workspace by id or title; \"own\" returns to this chat's board"),
       fresh: bool('Clear the board first'),
-      open: bool('Open a browser tab if no viewer is connected (default true)'),
+      open: bool('Show it to the human if nobody is watching (default true)'),
     }),
     async run(args, ctx) {
-      await ctx.session.ready();
       const client = await ctx.connect();
-      const boards = await client.list();
-      const resolved = ctx.session.resolveCanvas(args.name as string | undefined, boards.map((b) => b.id));
-      const ref = { ...resolved, title: boards.find((b) => b.id === resolved.id)?.title ?? resolved.title };
-      await ctx.canvas(ref);
-      ctx.session.setCurrent(ref);
+      const workspace = ctx.session.workspace;
+      const own = ctx.session.ownBoard(ctx.chat);
+      const boards = (await client.list()).filter((b) => b.workspace === workspace || b.id === own.id);
+      const wanted = (args.board as string | undefined)?.trim();
+      let target: CanvasRef = ctx.session.board(ctx.chat);
+      if (wanted) {
+        const match = wanted.toLowerCase() === 'own' ? own : boards.find((b) => b.id === wanted) ?? boards.find((b) => b.title.toLowerCase() === wanted.toLowerCase());
+        if (!match) throw new ToolError(`No board "${wanted}" in this workspace. Boards: ${boards.map((b) => `${b.title} [${b.id}]`).join('; ') || 'none yet'}.`);
+        target = { id: match.id, title: '' };
+      }
+      const titled = args.title !== undefined ? { ...target, title: String(args.title).trim() } : target;
+      const { ref } = await ctx.canvas(titled);
+      ctx.session.setBoard(ctx.chat, ref);
       if (args.fresh) await client.clear(ref.id);
       const snap = await client.snapshot(ref.id);
-      const url = client.viewerUrl(ref.id);
-      let opened = '';
-      if (args.open !== false && snap.viewers === 0) opened = ` (${openViewer(url)})`;
-      const others = boards.filter((b) => b.id !== ref.id).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 8);
+      const shown = args.open === false ? '' : await ctx.reveal(client, ref, snap.viewers);
+      const others = boards.filter((b) => b.id !== ref.id).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 10);
+      const mine = ref.id === own.id;
       return text(
-        `Board "${ref.title}" (${ref.id}): ${url}`,
-        `Viewers: ${snap.viewers}${opened}`,
+        `${mine ? "This chat's board" : 'Board from another chat'}: ${boardName(ref)} [${ref.id}]. ${snap.viewers ? 'The human is watching it.' : shown}`,
         snap.elements.length ? describeScene(snap.elements, { maxElements: 12 }) : 'The board is empty.',
-        others.length > 0 && `Other boards: ${others.map((b) => `${b.title} [${b.id}, ${b.elementCount} el]`).join('; ')}`,
+        others.length > 0 && `Other boards in this workspace (open one with board): ${others.map((b) => `${b.title === b.id ? '(untitled)' : b.title} [${b.id}, ${b.elementCount} el]`).join('; ')}`,
+        !mine && 'Drawing now changes that board; canvas_open {board:"own"} switches back to this chat\'s board.',
       );
     },
   },
@@ -284,15 +351,15 @@ export const TOOLS: Tool[] = [
       const { client, ref } = await ctx.canvas();
       const only = args.ids as string[] | undefined;
       const snap = await client.snapshot(ref.id);
-      const since = ctx.session.lastReadRev(ref.id);
+      const since = ctx.session.lastReadRev(ctx.chat, ref.id);
       const ch = await client.changes(ref.id, since);
       const scene = args.format === 'json' ? trimmedJson(snap.elements, only) : describeScene(snap.elements, only?.length ? { ids: only } : {});
       // A full (log-truncated) answer on the first read is just the scene above, not news.
       const human = ch.full ? (since > 0 ? 'too many to list; the scene above is current.' : '') : describeChanges(ch.changes, [...snap.elements, ...ch.elements], { actor: 'human' });
       const notes = unreadNotes(ch, since);
-      ctx.session.setLastReadRev(ref.id, ch.rev);
+      ctx.session.setLastReadRev(ctx.chat, ref.id, ch.rev);
       return text(
-        `Board "${ref.title}" rev ${ch.rev}, ${plural(snap.viewers, 'viewer')}.`,
+        `Board ${boardName(ref)} rev ${ch.rev}, ${plural(snap.viewers, 'viewer')}.`,
         scene,
         human ? `Human changes since your last read:\n${human}` : 'No human changes since your last read.',
         notes.length > 0 && `Notes from the human:\n${notes.map((n) => `- ${n.text}`).join('\n')}`,
@@ -323,7 +390,7 @@ export const TOOLS: Tool[] = [
         res.stale.length > 0 && `Not applied (the human edited them at the same moment, retry): ${res.stale.join(', ')}`,
         built.warnings.length > 0 && `Warnings:\n${built.warnings.map((w) => `- ${w}`).join('\n')}`,
         built.ids.length > 0 && describeScene([...merged.values()], { ids: built.ids }),
-        snap.viewers === 0 && noViewerHint(client.viewerUrl(ref.id)),
+        await ctx.reveal(client, ref, snap.viewers),
       );
     },
   },
@@ -337,7 +404,7 @@ export const TOOLS: Tool[] = [
       const { client, ref } = await ctx.canvas();
       if (args.all) {
         await client.clear(ref.id);
-        return `Cleared board "${ref.title}".`;
+        return `Cleared ${boardName(ref)}.`;
       }
       const snap = await client.snapshot(ref.id);
       const del = deleteElements(list, snap.elements);
@@ -357,16 +424,16 @@ export const TOOLS: Tool[] = [
   },
   {
     name: 'canvas_screenshot',
-    description: 'PNG of the board as the viewer renders it, to check your layout. Needs an open viewer.',
+    description: 'PNG of the board as the human sees it, to check your layout.',
     inputSchema: obj({ ids: ids('Only these elements'), dark: bool('Dark theme') }),
     async run(args, ctx) {
       const { result, ref } = await viewerRequest<ScreenshotResult>(ctx, 'screenshot', { ids: args.ids, dark: args.dark });
-      return { content: [{ type: 'image', data: result.base64, mimeType: 'image/png' }, { type: 'text', text: `Screenshot of "${ref.title}", ${result.width}×${result.height}px.` }] };
+      return { content: [{ type: 'image', data: result.base64, mimeType: 'image/png' }, { type: 'text', text: `Screenshot of ${boardName(ref)}, ${result.width}×${result.height}px.` }] };
     },
   },
   {
     name: 'canvas_mermaid',
-    description: 'Convert a Mermaid definition (flowchart, sequence, class…) into editable elements. Needs an open viewer.',
+    description: 'Convert a Mermaid definition (flowchart, sequence, class…) into editable elements on the board.',
     inputSchema: obj({ definition: str('Mermaid source'), x: num('Left edge'), y: num('Top edge') }, ['definition']),
     async run(args, ctx) {
       const { result, ref, client } = await viewerRequest<MermaidResult>(ctx, 'mermaid', { definition: args.definition, x: args.x, y: args.y }, 30_000);
@@ -424,11 +491,12 @@ function errorText(err: unknown): string {
 }
 
 /** Validates and runs a tool; every failure becomes an `isError` result. */
-export async function callTool(tool: Tool, rawArgs: unknown, ctx: ToolContext): Promise<ToolResult> {
+export async function callTool(tool: Tool, rawArgs: unknown, base: ToolContext, meta?: unknown): Promise<ToolResult> {
   const args = stripNulls(rawArgs ?? {});
   const invalid = validate(tool.inputSchema, args);
   if (invalid) return { content: [{ type: 'text', text: `Invalid arguments: ${invalid}.` }], isError: true };
   let result: ToolResult;
+  const ctx = await base.forChat(meta);
   try {
     const out = await tool.run(args as Args, ctx);
     result = typeof out === 'string' ? { content: [{ type: 'text', text: out }] } : out;

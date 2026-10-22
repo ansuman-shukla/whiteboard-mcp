@@ -65,7 +65,7 @@ export function startMcpServer(opts: McpServerOptions = {}): JsonRpcConnection {
           const tool = getTool(params.name);
           if (!tool) throw new RpcError(INVALID_PARAMS, `Unknown tool: ${params.name}`);
           if (params.arguments !== undefined && !isObject(params.arguments)) throw new RpcError(INVALID_PARAMS, 'tools/call arguments must be an object');
-          return callTool(tool, params.arguments ?? {}, ctx);
+          return callTool(tool, params.arguments ?? {}, ctx, params._meta);
         }
         default:
           throw new RpcError(METHOD_NOT_FOUND, `Method not found: ${method}`);

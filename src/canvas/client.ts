@@ -7,6 +7,7 @@ import {
   type Actor,
   type ApplyResponse,
   type BinaryFile,
+  type CanvasMeta,
   type CanvasNote,
   type CanvasSnapshot,
   type CanvasSummary,
@@ -129,8 +130,19 @@ export class CanvasClient {
     return this.call('GET', API.canvases);
   }
 
-  ensureCanvas(id: string, title?: string): Promise<CanvasSummary> {
-    return this.call('PUT', API.canvas(id), title === undefined ? {} : { title });
+  ensureCanvas(id: string, meta: CanvasMeta = {}): Promise<CanvasSummary> {
+    return this.call('PUT', API.canvas(id), meta);
+  }
+
+  /** Asks an IDE panel host to show the board beside the chat. False when no host is connected. */
+  async show(id: string, workspace: string): Promise<boolean> {
+    try {
+      await this.call('POST', API.show(id), { workspace }, 8000);
+      return true;
+    } catch (err) {
+      if (err instanceof CanvasError && err.status === 409) return false;
+      throw err;
+    }
   }
 
   snapshot(id: string): Promise<CanvasSnapshot> {

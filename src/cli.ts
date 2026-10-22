@@ -15,8 +15,8 @@ Usage:
   ${APP_NAME} [mcp]              MCP stdio server (default)
   ${APP_NAME} call <tool> [json|-]  run a tool once (JSON args inline or on stdin)
   ${APP_NAME} tools [--json]       list tools and their input schemas
-  ${APP_NAME} open [name]          open a board in the browser and print its URL
-  ${APP_NAME} url [name]           print a board's viewer URL only (for IDE panels)
+  ${APP_NAME} open                 show your board (panel or browser)
+  ${APP_NAME} url [board]          print a board's viewer URL (yours, or a workspace board by id/title)
   ${APP_NAME} status               show the canvas daemon and its boards
   ${APP_NAME} stop                 stop the canvas daemon
   ${APP_NAME} serve                run the canvas daemon in the foreground
@@ -126,18 +126,23 @@ async function stop(): Promise<number> {
 }
 
 async function open(name: string | undefined): Promise<number> {
-  const result = await callTool(getTool('canvas_open')!, name ? { name } : {}, new ToolContext(new Session(undefined, true)));
+  const result = await callTool(getTool('canvas_open')!, name ? { board: name } : {}, new ToolContext(new Session(undefined, true)));
   printResult(result);
   return result.isError ? 1 : 0;
 }
 
-/** Prints only the board's viewer URL, for IDE integrations that show it themselves. */
-async function url(name: string | undefined): Promise<number> {
-  const session = new Session(undefined, true);
-  const ref = session.resolveCanvas(name);
-  const client = await CanvasClient.connect();
-  await client.ensureCanvas(ref.id, ref.title);
-  out(client.viewerUrl(ref.id));
+/** Prints a board's viewer URL: the CLI chat's own board, or a workspace board by id or title. */
+async function url(board: string | undefined): Promise<number> {
+  const ctx = await new ToolContext(new Session(undefined, true)).forChat();
+  const client = await ctx.connect();
+  if (!board) {
+    const { ref } = await ctx.canvas();
+    out(client.viewerUrl(ref.id));
+    return 0;
+  }
+  const match = (await client.list()).find((b) => b.workspace === ctx.session.workspace && (b.id === board || b.title.toLowerCase() === board.toLowerCase()));
+  if (!match) return fail(`no board "${board}" in ${ctx.session.workspace}`);
+  out(client.viewerUrl(match.id));
   return 0;
 }
 

@@ -102,11 +102,16 @@ describe('cli', () => {
     expect(run(['call', 'canvas_delete', '{}']).code).toBe(1);
   });
 
-  it('prints only the workspace board URL for IDE panels', () => {
-    const r = run(['url']);
-    expect(r.code, r.stderr).toBe(0);
-    expect(r.stdout).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/c\/proj-[0-9a-f]{6}\?token=[0-9a-f]{64}\n$/);
-    expect(run(['url', 'auth flow']).stdout).toMatch(/\/c\/auth-flow-[0-9a-f]{6}\?/);
+  it("prints the CLI chat's board URL, the same across calls, and finds workspace boards by title", () => {
+    const own = run(['url']);
+    expect(own.code, own.stderr).toBe(0);
+    expect(own.stdout).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/c\/proj-[0-9a-f]{6}\?token=[0-9a-f]{64}\n$/);
+    expect(run(['url']).stdout).toBe(own.stdout);
+    expect(run(['call', 'canvas_open', '{"title":"Auth flow","open":false}']).code).toBe(0);
+    expect(run(['url', 'auth flow']).stdout).toBe(own.stdout);
+    const missing = run(['url', 'nope']);
+    expect(missing.code).toBe(1);
+    expect(missing.stderr).toContain('no board "nope"');
   });
 
   it('prints its version', () => {
