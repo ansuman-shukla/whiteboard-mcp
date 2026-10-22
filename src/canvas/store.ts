@@ -273,16 +273,28 @@ export class CanvasStore {
   }
 
   clear(id: string, actor: Actor): ApplyResponse {
+    return this.replace(id, [], actor);
+  }
+
+  /**
+   * Makes `elements` the board's whole scene: every other live element is deleted, and each incoming
+   * one gets a version above anything stored for its id, so it wins over tombstones and old replicas.
+   */
+  replace(id: string, elements: unknown, actor: Actor, files?: unknown): ApplyResponse {
     const c = this.get(id);
-    const live = [...c.elements.values()].filter((el) => !el.isDeleted);
-    if (!live.length) return { rev: c.rev, applied: [], stale: [] };
-    const rev = ++c.rev;
+    const incoming = validateElements(elements);
     const now = this.now();
-    for (const el of live) {
-      c.elements.set(el.id, { ...el, version: el.version + 1, versionNonce: randomInt(2 ** 31 - 1), isDeleted: true, updated: now });
-    }
-    this.record(c, live.map((el) => ({ rev, actor, id: el.id, kind: 'deleted' as const })));
-    return { rev, applied: live.map((el) => el.id), stale: [] };
+    const bump = (el: ExElement, isDeleted: boolean): ExElement => ({
+      ...el,
+      version: Math.max(el.version, c.elements.get(el.id)?.version ?? 0) + 1,
+      versionNonce: randomInt(2 ** 31 - 1),
+      isDeleted,
+      updated: now,
+    });
+    const live = incoming.filter((el) => !el.isDeleted);
+    const keep = new Set(live.map((el) => el.id));
+    const removed = [...c.elements.values()].filter((el) => !el.isDeleted && !keep.has(el.id)).map((el) => bump(el, true));
+    return this.apply(id, [...removed, ...live.map((el) => bump(el, false))], actor, files);
   }
 
   changes(id: string, since: number): ChangesResponse {
