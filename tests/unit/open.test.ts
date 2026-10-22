@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { openerArgv, splitCommand } from '../../src/mcp/open.js';
+import { openerArgv, openViewer, splitCommand } from '../../src/mcp/open.js';
 
 const URL = 'http://127.0.0.1:1/c/b?token=t&x=1';
+const node = (code: string) => `"${process.execPath}" -e "${code}"`;
 
 describe('openerArgv', () => {
   it('treats unset, browser and auto as the platform browser', () => {
@@ -17,5 +18,34 @@ describe('openerArgv', () => {
 
   it('splits commands with quotes and escapes without a shell', () => {
     expect(splitCommand(`a 'b c' "d \\"e\\"" f\\ g`)).toEqual(['a', 'b c', 'd "e"', 'f g']);
+  });
+});
+
+describe('openViewer', () => {
+  it('reports a failure when the opener exits non-zero (e.g. blocked by a sandbox)', async () => {
+    const result = await openViewer(URL, node('process.exit(3)'));
+    expect(result.opened).toBe(false);
+    expect(result.note).toContain('exited with code 3');
+  });
+
+  it('reports a failure when the opener cannot be started', async () => {
+    const result = await openViewer(URL, '/nonexistent/whiteboard-opener');
+    expect(result.opened).toBe(false);
+    expect(result.note).toMatch(/could not open .*ENOENT/);
+  });
+
+  it('reports success when the opener exits cleanly', async () => {
+    expect(await openViewer(URL, node('0'))).toEqual({ opened: true, note: `opened with ${process.execPath}` });
+  });
+
+  it('counts an opener that keeps running (a browser started directly) as opened, without waiting for it', async () => {
+    const started = Date.now();
+    const result = await openViewer(URL, node('setTimeout(() => {}, 3000)'), 200);
+    expect(result.opened).toBe(true);
+    expect(Date.now() - started).toBeLessThan(1500);
+  });
+
+  it('opens nothing for none', async () => {
+    expect(await openViewer(URL, 'none')).toEqual({ opened: false, note: 'not opened (WHITEBOARD_OPEN=none)' });
   });
 });

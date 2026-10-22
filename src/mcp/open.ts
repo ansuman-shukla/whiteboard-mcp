@@ -1,4 +1,11 @@
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
+
+const OPEN_WAIT_MS = 1500;
+
+export interface OpenResult {
+  opened: boolean;
+  note: string;
+}
 
 /** Splits a command template into argv without a shell; supports '…' and "…" quoting and backslash escapes. */
 export function splitCommand(template: string): string[] {
@@ -44,18 +51,34 @@ export function openerArgv(url: string, setting = process.env.WHITEBOARD_OPEN, p
   return mode.includes('{url}') ? argv : [...argv, url];
 }
 
-/** Opens the viewer without ever throwing or blocking; returns a short status for tool output. */
-export function openViewer(url: string): string {
-  const argv = openerArgv(url);
-  if (!argv) return 'not opened (WHITEBOARD_OPEN=none)';
+/**
+ * Opens the viewer without ever throwing. Waits briefly for the opener's exit so a blocked one
+ * (e.g. `open` inside a sandbox) is reported instead of claimed as opened.
+ */
+export function openViewer(url: string, setting = process.env.WHITEBOARD_OPEN, waitMs = OPEN_WAIT_MS): Promise<OpenResult> {
+  const argv = openerArgv(url, setting);
+  if (!argv) return Promise.resolve({ opened: false, note: 'not opened (WHITEBOARD_OPEN=none)' });
   const [cmd, ...args] = argv;
-  if (!cmd) return 'not opened (empty WHITEBOARD_OPEN)';
-  try {
-    const child = spawn(cmd, args, { detached: true, stdio: 'ignore', windowsVerbatimArguments: cmd === 'cmd' });
-    child.on('error', () => undefined);
-    child.unref();
-    return `opened with ${cmd}`;
-  } catch (err) {
-    return `could not open (${err instanceof Error ? err.message : String(err)})`;
-  }
+  if (!cmd) return Promise.resolve({ opened: false, note: 'not opened (empty WHITEBOARD_OPEN)' });
+  return new Promise((resolve) => {
+    let child: ChildProcess;
+    try {
+      child = spawn(cmd, args, { detached: true, stdio: 'ignore', windowsVerbatimArguments: cmd === 'cmd' });
+    } catch (err) {
+      return resolve({ opened: false, note: `could not open (${err instanceof Error ? err.message : String(err)})` });
+    }
+    const settle = (result: OpenResult) => {
+      clearTimeout(timer);
+      child.removeAllListeners();
+      child.on('error', () => undefined);
+      child.unref();
+      resolve(result);
+    };
+    // Still running after the wait: a browser started directly, not a launcher that hands off and exits.
+    const timer = setTimeout(() => settle({ opened: true, note: `opened with ${cmd}` }), waitMs);
+    child.once('error', (err) => settle({ opened: false, note: `could not open (${err.message})` }));
+    child.once('exit', (code, signal) =>
+      settle(code === 0 ? { opened: true, note: `opened with ${cmd}` } : { opened: false, note: `could not open (${cmd} exited with ${code === null ? `signal ${signal}` : `code ${code}`})` }),
+    );
+  });
 }

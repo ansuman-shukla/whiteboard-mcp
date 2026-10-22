@@ -428,6 +428,21 @@ describe('showing boards', () => {
     expect(urls.map((u) => /\/c\/([a-z0-9-]+)\?token=/.exec(u)?.[1]).sort()).toEqual([...boards].sort());
   });
 
+  it.skipIf(process.platform === 'win32')('when the browser opener fails (e.g. inside a sandbox) it says so and hands over the link instead of claiming it opened', async () => {
+    const bin = join(root, 'failing-bin');
+    mkdirSync(bin, { recursive: true });
+    for (const name of ['open', 'xdg-open']) writeFileSync(join(bin, name), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+    const session = await connect({ env: { PATH: `${bin}${delimiter}${env.PATH}`, WHITEBOARD_OPEN: '' }, unset: ['VSCODE_PID', 'VSCODE_IPC_HOOK_CLI', 'CURSOR_TRACE_ID', 'TERM_PROGRAM'] });
+    const drawn = await call(session, 'canvas_draw', { elements: [{ id: 'x', type: 'rectangle', x: 0, y: 0, label: 'X' }] });
+    expect(drawn.text).not.toContain('opened with');
+    expect(drawn.text).toMatch(/could not open .*exited with code 1.*\/c\/[a-z0-9-]+\?token=/s);
+    const started = Date.now();
+    const shot = await call(session, 'canvas_screenshot');
+    expect(shot.result.isError).toBe(true);
+    expect(shot.text).toMatch(/\/c\/[a-z0-9-]+\?token=/);
+    expect(Date.now() - started).toBeLessThan(5000);
+  });
+
   it('inside an editor without a panel host it opens nothing and tells the agent not to use a browser', async () => {
     const client = await connect({ env: { WINDSURF_EXT_HOST_PID: '1', WHITEBOARD_OPEN: '' } });
     const { text } = await call(client, 'canvas_open');
