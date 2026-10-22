@@ -301,6 +301,21 @@ describe('saved boards', () => {
     for (const limit of ['0', '51', '1.5', 'x']) expect((await apiJson(d, `/api/saved?limit=${limit}`)).status).toBe(400);
   });
 
+  it('searches live boards of every folder, this workspace first, and requires the token', async () => {
+    const d = await start();
+    await board(d, 'b1', { title: 'Cache', workspace: W }, [label('t', 'auth tokens')]);
+    await board(d, 'b2', { title: 'Auth', workspace: '/work/beta' }, [el('a')]);
+    await board(d, 'b3', { title: 'Auth empty', workspace: W }, []);
+    const ids = async (query: string) => ((await apiJson(d, `/api/search?${query}`)).body as Array<{ id: string }>).map((s) => s.id);
+    expect(await ids(`q=auth&workspace=${encodeURIComponent(W)}`)).toEqual(['b1', 'b2']);
+    expect(await ids('q=auth')).toEqual(['b2', 'b1']);
+    expect((await apiJson(d, '/api/search?q=tokens')).body).toEqual([expect.objectContaining({ id: 'b1', title: 'Cache', workspace: W, snippet: 'auth tokens' })]);
+    expect(await ids('limit=1')).toHaveLength(1);
+    expect((await api(d, '/api/search', { token: null })).status).toBe(401);
+    expect((await apiJson(d, '/api/search', { method: 'POST', body: {} })).status).toBe(405);
+    for (const limit of ['0', '51', 'x']) expect((await apiJson(d, `/api/search?limit=${limit}`)).status).toBe(400);
+  });
+
   it('a viewer saves its board over the socket and gets the result back', async () => {
     const d = await start();
     await board(d, 'c1', { title: 'Sketch', workspace: W }, []);
