@@ -11,6 +11,9 @@ const root = fileURLToPath(new URL('../..', import.meta.url));
 const dir = mkdtempSync(path.join(tmpdir(), 'wb-vsix-'));
 afterAll(() => removeTempDir(dir));
 
+// 1980-01-01 in MS-DOS date format: fixed timestamps keep the archive reproducible.
+const DOS_1980 = (1 << 5) | 1;
+
 /** Reads a zip through its central directory, checking every entry's local header and CRC. */
 function unzip(archive: Buffer): Map<string, Buffer> {
   const end = archive.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
@@ -29,6 +32,9 @@ function unzip(archive: Buffer): Map<string, Buffer> {
     const offset = archive.readUInt32LE(at + 42);
     const name = archive.subarray(at + 46, at + 46 + nameLength).toString('utf8');
     expect(archive.readUInt32LE(offset)).toBe(0x04034b50);
+    // The local header repeats method, time, CRC and sizes; installers read either copy.
+    expect([archive.readUInt16LE(offset + 8), archive.readUInt32LE(offset + 14), archive.readUInt32LE(offset + 18), archive.readUInt32LE(offset + 22)]).toEqual([method, crc, packedSize, size]);
+    expect([archive.readUInt16LE(at + 12), archive.readUInt16LE(at + 14), archive.readUInt16LE(offset + 10), archive.readUInt16LE(offset + 12)]).toEqual([0, DOS_1980, 0, DOS_1980]);
     expect(archive.subarray(offset + 30, offset + 30 + archive.readUInt16LE(offset + 26)).toString('utf8')).toBe(name);
     const start = offset + 30 + archive.readUInt16LE(offset + 26) + archive.readUInt16LE(offset + 28);
     const packed = archive.subarray(start, start + packedSize);
