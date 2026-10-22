@@ -35,7 +35,8 @@ const debug = (msg: string): void => {
 /** Shared by the MCP server and CLI `call`: lazy daemon connection plus the session. */
 export class ToolContext {
   private client?: Promise<CanvasClient>;
-  readonly ensured = new Set<string>();
+  /** Boards already created this process, with their current titles. */
+  readonly titles = new Map<string, string>();
 
   constructor(readonly session: Session, private readonly connectOpts: Parameters<typeof CanvasClient.connect>[0] = {}) {}
 
@@ -82,12 +83,11 @@ export class ChatContext {
   async canvas(ref = this.session.board(this.chat)): Promise<{ client: CanvasClient; ref: CanvasRef }> {
     const client = await this.connect();
     const own = ref.id === this.session.ownBoard(this.chat).id;
-    if (!this.base.ensured.has(ref.id) || ref.title) {
+    if (!this.base.titles.has(ref.id) || ref.title) {
       const summary = await client.ensureCanvas(ref.id, { ...(ref.title ? { title: ref.title } : {}), ...(own ? { workspace: this.session.workspace, chat: this.chat } : {}) });
-      this.base.ensured.add(ref.id);
-      ref = { id: ref.id, title: summary.title === ref.id ? '' : summary.title };
+      this.base.titles.set(ref.id, summary.title === ref.id ? '' : summary.title);
     }
-    return { client, ref };
+    return { client, ref: { id: ref.id, title: this.base.titles.get(ref.id) ?? '' } };
   }
 
   /**
