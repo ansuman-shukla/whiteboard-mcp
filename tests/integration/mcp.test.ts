@@ -74,7 +74,8 @@ beforeAll(async () => {
     WHITEBOARD_OPEN: 'none',
     WHITEBOARD_IDLE_MS: '60000',
   };
-  for (const key of ['WHITEBOARD_WORKSPACE', 'WHITEBOARD_CHAT_ID', 'WHITEBOARD_CHAT_COMMAND']) delete env[key];
+  // Ignore the identity of the agent running these tests (its chat and its editor window).
+  for (const key of ['WHITEBOARD_WORKSPACE', 'WHITEBOARD_CHAT_ID', 'WHITEBOARD_CHAT_COMMAND', 'WHITEBOARD_HOST_ID', 'WINDSURF_EXT_HOST_PID']) delete env[key];
   delete env.WHITEBOARD_EXPORT_DIR;
 });
 
@@ -332,6 +333,70 @@ describe('showing boards', () => {
     expect(drawn.text).not.toMatch(/https?:\/\//);
     expect(shows).toHaveLength(1);
     expect(shows[0]!.canvasId).toBe(boardId((await call(client, 'canvas_open', { open: false })).text));
+  });
+
+  /** A panel host (editor window) that shows every board it is asked to. */
+  async function panelHost(hello: { folders: string[]; hostId?: string; focused?: boolean }) {
+    const { port, token } = daemon();
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws/host?token=${token}`);
+    const shows: string[] = [];
+    ws.on('message', (m) => {
+      const msg = JSON.parse(String(m)) as { reqId: string; canvasId: string };
+      shows.push(msg.canvasId);
+      ws.send(JSON.stringify({ t: 'shown', reqId: msg.reqId, ok: true }));
+    });
+    await new Promise((r) => ws.once('open', r));
+    ws.send(JSON.stringify({ t: 'hello', focused: false, ...hello }));
+    await new Promise((r) => setTimeout(r, 100));
+    return { shows, close: () => ws.close() };
+  }
+
+  it("shows each chat's first drawing only in the window that chat runs in, even when both windows show the same folder", async () => {
+    // Desktop starts every chat's MCP server with its window's extension-host pid; the window's panel host says hello with it.
+    const chatA = await connect({ env: { WINDSURF_EXT_HOST_PID: '45824', WHITEBOARD_OPEN: '' } });
+    const chatB = await connect({ env: { WINDSURF_EXT_HOST_PID: '64248', WHITEBOARD_OPEN: '' } });
+    const windowA = await panelHost({ folders: [workspace], hostId: '45824' });
+    const windowB = await panelHost({ folders: [workspace], hostId: '64248', focused: true });
+    try {
+      const drawnB = await call(chatB, 'canvas_draw', { elements: [{ id: 'b', type: 'rectangle', x: 0, y: 0, label: 'B' }] });
+      const drawnA = await call(chatA, 'canvas_draw', { elements: [{ id: 'a', type: 'rectangle', x: 0, y: 0, label: 'A' }] });
+      expect(drawnA.text).toContain('Shown to the human beside the chat.');
+      expect(drawnB.text).toContain('Shown to the human beside the chat.');
+      const boardA = boardId((await call(chatA, 'canvas_open', { open: false })).text);
+      const boardB = boardId((await call(chatB, 'canvas_open', { open: false })).text);
+      expect(boardA).not.toBe(boardB);
+      expect(windowA.shows).toEqual([boardA]);
+      expect(windowB.shows).toEqual([boardB]);
+    } finally {
+      windowA.close();
+      windowB.close();
+    }
+  });
+
+  it('WHITEBOARD_HOST_ID names the window explicitly and wins over the editor variable', async () => {
+    const chat = await connect({ env: { WINDSURF_EXT_HOST_PID: '45824', WHITEBOARD_HOST_ID: 'my-window', WHITEBOARD_OPEN: '' } });
+    const editorWindow = await panelHost({ folders: [workspace], hostId: '45824', focused: true });
+    const named = await panelHost({ folders: [], hostId: 'my-window' });
+    try {
+      await call(chat, 'canvas_draw', { elements: [{ id: 'n', type: 'rectangle', x: 0, y: 0 }] });
+      expect(named.shows).toEqual([boardId((await call(chat, 'canvas_open', { open: false })).text)]);
+      expect(editorWindow.shows).toEqual([]);
+    } finally {
+      editorWindow.close();
+      named.close();
+    }
+  });
+
+  it('inside an editor, a window other than the chat\'s own never shows its board', async () => {
+    const chat = await connect({ env: { WINDSURF_EXT_HOST_PID: '45824', WHITEBOARD_OPEN: '' } });
+    const otherWindow = await panelHost({ folders: [workspace], hostId: '64248', focused: true });
+    try {
+      const { text } = await call(chat, 'canvas_draw', { elements: [{ id: 'o', type: 'rectangle', x: 0, y: 0 }] });
+      expect(text).toContain('No whiteboard panel is connected');
+      expect(otherWindow.shows).toEqual([]);
+    } finally {
+      otherWindow.close();
+    }
   });
 
   it('inside an editor without a panel host it opens nothing and tells the agent not to use a browser', async () => {
