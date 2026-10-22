@@ -1,0 +1,207 @@
+html,
+body,
+#root,
+.xl-root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+html {
+  background: #fff;
+}
+html[data-theme='dark'] {
+  background: #121212;
+}
+
+.xl-chrome--footer {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+/* Mobile UI: top toolbar and bottom bar span the width; sit just above the bottom bar, right-aligned. */
+.xl-chrome--mobile {
+  position: absolute;
+  right: 14px;
+  bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  z-index: 3;
+  pointer-events: none;
+}
+
+.xl-pill-wrap {
+  position: relative;
+  pointer-events: auto;
+  font-family: var(--ui-font, system-ui, sans-serif);
+}
+.xl-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 32px;
+  padding: 0 4px 0 10px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: var(--island-bg-color, #fff);
+  color: var(--text-primary-color, #1b1b1f);
+  box-shadow: var(--shadow-island, 0 1px 4px rgba(0, 0, 0, 0.15));
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+}
+.xl-pill--error {
+  padding: 0 12px;
+  pointer-events: auto;
+}
+.xl-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 6px;
+  color: var(--color-gray-60, #7a7a7a);
+}
+.xl-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f59f00;
+}
+.xl-status--live .xl-dot {
+  background: #2fb344;
+  box-shadow: 0 0 0 3px rgba(47, 179, 68, 0.18);
+}
+.xl-status--offline .xl-dot {
+  animation: xl-blink 1.2s ease-in-out infinite;
+}
+.xl-viewers {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 6px;
+  color: var(--color-gray-60, #7a7a7a);
+}
+.xl-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  min-width: 24px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.xl-btn:hover {
+  background: var(--button-hover-bg, rgba(0, 0, 0, 0.06));
+}
+.xl-btn[aria-pressed='true'] {
+  color: var(--color-primary, #6965db);
+  background: var(--color-surface-primary-container, rgba(105, 101, 219, 0.12));
+}
+.xl-btn:focus-visible,
+.xl-send:focus-visible {
+  outline: 2px solid var(--color-primary, #6965db);
+  outline-offset: 1px;
+}
+
+.xl-note {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(300px, calc(100vw - 24px));
+  padding: 8px;
+  box-sizing: border-box;
+  border-radius: 10px;
+  background: var(--island-bg-color, #fff);
+  box-shadow: var(--shadow-island, 0 2px 10px rgba(0, 0, 0, 0.2));
+  z-index: 10;
+}
+.xl-chrome--mobile .xl-note {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+.xl-note textarea {
+  display: block;
+  width: 100%;
+  min-height: 72px;
+  box-sizing: border-box;
+  resize: vertical;
+  padding: 6px 8px;
+  border: 1px solid var(--default-border-color, #ddd);
+  border-radius: 6px;
+  background: var(--input-bg-color, transparent);
+  color: var(--text-primary-color, inherit);
+  font: 13px/1.4 var(--ui-font, system-ui, sans-serif);
+}
+.xl-note textarea:focus {
+  outline: none;
+  border-color: var(--color-primary, #6965db);
+}
+.xl-note-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+.xl-hint {
+  font-size: 11px;
+  color: var(--color-gray-50, #999);
+}
+.xl-send {
+  height: 26px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--color-primary, #6965db);
+  color: #fff;
+  font: 600 12px var(--ui-font, system-ui, sans-serif);
+  cursor: pointer;
+}
+.xl-send:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.xl-highlight {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 5;
+  overflow: visible;
+}
+.xl-highlight rect {
+  fill: rgba(255, 196, 0, 0.1);
+  stroke: #f59f00;
+  stroke-width: 3;
+  rx: 10px;
+  animation: xl-pulse 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes xl-pulse {
+  from {
+    stroke-opacity: 1;
+    stroke-width: 3;
+  }
+  to {
+    stroke-opacity: 0.35;
+    stroke-width: 7;
+  }
+}
+@keyframes xl-blink {
+  50% {
+    opacity: 0.3;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .xl-highlight rect,
+  .xl-status--offline .xl-dot {
+    animation: none;
+  }
+}
