@@ -20,6 +20,8 @@ export interface DaemonOptions {
   heartbeatMs?: number;
   /** How long a panel host may take to show a board. */
   showTimeoutMs?: number;
+  /** How long after start a show hinting a window waits for that window's panel host to connect. */
+  hostGraceMs?: number;
   frontendDir?: string;
   onIdle?: () => void;
   log?: (line: string) => void;
@@ -71,7 +73,15 @@ interface PendingShow {
   finish: (status: number, body: unknown) => void;
 }
 
+/** A show waiting for its window's panel host to connect to a daemon that just started. */
+interface HostWait {
+  retry: () => void;
+  finish: (status: number, body: unknown) => void;
+}
+
 const DEFAULT_SHOW_TIMEOUT_MS = 5_000;
+/** Panel hosts look for a new daemon every few seconds (daemon.json), so a fresh daemon gives them this long. */
+const DEFAULT_HOST_GRACE_MS = 5_000;
 const MAX_HOST_FOLDERS = 64;
 const MAX_HOST_ID = 256;
 
@@ -207,6 +217,9 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
   const pending = new Map<string, Pending>();
   const hosts = new Set<Host>();
   const pendingShows = new Map<string, PendingShow>();
+  const hostWaits = new Set<HostWait>();
+  const startedAt = Date.now();
+  const hostGraceMs = opts.hostGraceMs ?? DEFAULT_HOST_GRACE_MS;
   const timers: NodeJS.Timeout[] = [];
   let allowedHosts = new Set<string>();
   let allowedOrigins = new Set<string>();
@@ -297,9 +310,45 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
     return best;
   }
 
+  /**
+   * Right after the daemon starts (the agent's first call started it), the chat's window hasn't found it
+   * yet; a show that names its window waits briefly for that window's host instead of answering no_host.
+   */
   function show(canvasId: string, workspace: string | undefined, hint: string | undefined, res: ServerResponse): Promise<void> {
     const host = pickHost(workspace, hint);
-    if (!host) return Promise.resolve(sendJson(res, 409, { error: 'no_host' }));
+    if (host) return showOn(host, canvasId, res);
+    const graceLeft = startedAt + hostGraceMs - Date.now();
+    if (hint === undefined || graceLeft <= 0) return Promise.resolve(sendJson(res, 409, { error: 'no_host' }));
+    return new Promise((done) => {
+      const end = () => {
+        hostWaits.delete(wait);
+        clearTimeout(timer);
+        res.off('close', onClientGone);
+      };
+      const wait: HostWait = {
+        retry: () => {
+          const found = pickHost(workspace, hint);
+          if (!found) return;
+          end();
+          void showOn(found, canvasId, res).then(done);
+        },
+        finish: (status, body) => {
+          end();
+          sendJson(res, status, body);
+          done();
+        },
+      };
+      const onClientGone = () => {
+        end();
+        done();
+      };
+      const timer = setTimeout(() => wait.finish(409, { error: 'no_host' }), graceLeft);
+      res.once('close', onClientGone);
+      hostWaits.add(wait);
+    });
+  }
+
+  function showOn(host: Host, canvasId: string, res: ServerResponse): Promise<void> {
     const reqId = randomUUID();
     return new Promise((done) => {
       const finish = (status: number, body: unknown) => {
@@ -508,6 +557,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
       }
       if (typeof msg.focused === 'boolean') host.focused = msg.focused;
       if (msg.t === 'hello' && typeof msg.hostId === 'string' && msg.hostId && msg.hostId.length <= MAX_HOST_ID) host.hostId = msg.hostId;
+      for (const wait of [...hostWaits]) wait.retry();
     } else if (msg.t === 'shown' && typeof msg.reqId === 'string') {
       const entry = pendingShows.get(msg.reqId);
       if (entry?.host !== host) return;
@@ -624,6 +674,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
       for (const t of timers) clearInterval(t);
       for (const entry of [...pending.values()]) entry.finish(503, { error: 'shutting_down' });
       for (const entry of [...pendingShows.values()]) entry.finish(503, { error: 'shutting_down' });
+      for (const wait of [...hostWaits]) wait.finish(503, { error: 'shutting_down' });
       const closed = [new Promise<void>((r) => server.close(() => r()))];
       for (const ws of wss.clients) {
         closed.push(new Promise((r) => ws.once('close', r)));
@@ -645,7 +696,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
     stats: () => {
       let viewers = 0;
       for (const set of viewersByCanvas.values()) viewers += set.size;
-      return { viewers, hosts: hosts.size, pending: pending.size + pendingShows.size, loadedCanvases: store.loadedCount, sockets: wss.clients.size };
+      return { viewers, hosts: hosts.size, pending: pending.size + pendingShows.size + hostWaits.size, loadedCanvases: store.loadedCount, sockets: wss.clients.size };
     },
   };
 }

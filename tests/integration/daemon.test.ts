@@ -18,7 +18,8 @@ function el(id: string, over: Partial<ExElement> = {}): ExElement {
 }
 
 async function start(opts: Partial<DaemonOptions> = {}): Promise<Daemon> {
-  const d = await startDaemon({ port: 0, dir: join(root, 'state'), frontendDir, ...opts });
+  // Hinted shows answer at once unless a test is about a fresh daemon's grace period for hosts.
+  const d = await startDaemon({ port: 0, dir: join(root, 'state'), frontendDir, hostGraceMs: 0, ...opts });
   daemons.push(d);
   return d;
 }
@@ -620,6 +621,58 @@ describe('panel hosts', () => {
     h.ws.close();
     expect(await dropped).toEqual({ status: 502, body: { error: 'host_disconnected' } });
     await until(() => d.stats().hosts === 0 && d.stats().pending === 0);
+  });
+
+  it("a fresh daemon waits for the hinted window's host to connect, and shows the board only there", async () => {
+    // The agent's first call started the daemon; windows find it by polling daemon.json every few seconds.
+    const d = await start({ hostGraceMs: 3000 });
+    await board(d, 'mcp', '/w');
+    const pending = showTo(d, { workspace: '/w', host: '111' });
+    await sleep(100);
+    expect(d.stats().pending).toBe(1);
+    const other = await host(d, { folders: ['/w'], focused: true, hostId: '222' });
+    await sleep(50);
+    expect(d.stats().pending).toBe(1);
+    const own = await host(d, { folders: [], focused: false, hostId: '111' });
+    await until(() => own.shows.length === 1);
+    own.reply(own.shows[0]!.reqId);
+    expect(await pending).toEqual({ status: 200, body: { shown: true } });
+    expect(other.shows).toEqual([]);
+    expect(d.stats().pending).toBe(0);
+  });
+
+  it('answers no_host once the grace period is over, and never waits for shows without a window hint', async () => {
+    const d = await start({ hostGraceMs: 400 });
+    await board(d, 'mcp', '/w');
+    let started = Date.now();
+    expect(await showTo(d, { workspace: '/w' })).toEqual({ status: 409, body: { error: 'no_host' } });
+    expect(Date.now() - started).toBeLessThan(200);
+    expect(await showTo(d, { workspace: '/w', host: '111' })).toEqual({ status: 409, body: { error: 'no_host' } });
+    expect(Date.now() - started).toBeGreaterThanOrEqual(300);
+    started = Date.now();
+    expect(await showTo(d, { workspace: '/w', host: '111' })).toEqual({ status: 409, body: { error: 'no_host' } });
+    expect(Date.now() - started).toBeLessThan(200);
+    expect(d.stats().pending).toBe(0);
+  });
+
+  it('drops a waiting show when its caller leaves or the daemon shuts down', async () => {
+    const d = await start({ hostGraceMs: 5000 });
+    await board(d, 'mcp', '/w');
+    const abort = new AbortController();
+    const gone = fetch(`${d.url}/api/canvases/mcp/show`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${d.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspace: '/w', host: '111' }),
+      signal: abort.signal,
+    }).catch(() => 'aborted');
+    await until(() => d.stats().pending === 1);
+    abort.abort();
+    expect(await gone).toBe('aborted');
+    await until(() => d.stats().pending === 0);
+    const waiting = showTo(d, { workspace: '/w', host: '111' });
+    await until(() => d.stats().pending === 1);
+    await d.close();
+    expect(await waiting).toEqual({ status: 503, body: { error: 'shutting_down' } });
   });
 
   it('requires the token and the daemon origin for hosts', async () => {
