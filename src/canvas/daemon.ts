@@ -20,7 +20,8 @@ import {
   type ServerMessage,
   type ViewerRequestType,
 } from '../shared/protocol.js';
-import { MAX_SEARCH_LIMIT, SavedStore } from './saved.js';
+import { SavedStore } from './saved.js';
+import { MAX_SEARCH_LIMIT } from './search.js';
 import { CanvasStore, NotFoundError, ValidationError, validateElements } from './store.js';
 
 export interface DaemonOptions {

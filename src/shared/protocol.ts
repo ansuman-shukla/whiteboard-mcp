@@ -52,6 +52,11 @@ export interface CanvasSummary {
   chat?: string;
 }
 
+export interface CanvasSearchHit extends CanvasSummary {
+  /** A line of the board's text that matches the search query. */
+  snippet?: string;
+}
+
 export interface CanvasSnapshot {
   id: string;
   title: string;

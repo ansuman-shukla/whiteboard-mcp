@@ -2,12 +2,14 @@ import { basename } from 'node:path';
 import type { ExElement } from '../shared/protocol.js';
 
 const SNIPPET_LENGTH = 80;
+export const DEFAULT_SEARCH_LIMIT = 10;
+export const MAX_SEARCH_LIMIT = 50;
 
 export const oneLine = (s: string): string => s.replace(/\s+/g, ' ').trim();
 
 /** The text of a board's text elements, one line each, for search. */
-export function textLines(elements: readonly ExElement[]): string[] {
-  return elements.flatMap((el) => (el.type === 'text' && typeof el.text === 'string' && el.text.trim() && !el.isDeleted ? [oneLine(el.text)] : []));
+export function textLines(elements: Iterable<ExElement>): string[] {
+  return [...elements].flatMap((el) => (el.type === 'text' && typeof el.text === 'string' && el.text.trim() && !el.isDeleted ? [oneLine(el.text)] : []));
 }
 
 export const searchTerms = (query: string): string[] => query.toLowerCase().split(/\s+/).filter(Boolean);

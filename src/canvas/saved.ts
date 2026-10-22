@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFile
 import { join } from 'node:path';
 import { sha6, slug } from '../shared/ids.js';
 import { CANVAS_ID_PATTERN, type BinaryFile, type ExElement, type SavedBoard, type SavedSummary } from '../shared/protocol.js';
-import { matchTerms, oneLine, searchTerms, textLines, type Match } from './search.js';
+import { DEFAULT_SEARCH_LIMIT, MAX_SEARCH_LIMIT, matchTerms, oneLine, searchTerms, textLines, type Match } from './search.js';
 import { NotFoundError, ValidationError, referencedFileIds, validateElements } from './store.js';
 
 export interface SavedStoreOptions {
@@ -24,8 +24,6 @@ interface Entry extends SavedSummary {
 }
 
 export const MAX_SAVED_NAME_LENGTH = 200;
-const DEFAULT_LIMIT = 10;
-export const MAX_SEARCH_LIMIT = 50;
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
@@ -85,7 +83,7 @@ export class SavedStore {
    * Boards whose name, id, folder name or text contain every word of the query (all boards when empty):
    * those of `workspace` first, then by how many words the name matches, then newest first.
    */
-  search(query: string, workspace?: string, limit = DEFAULT_LIMIT): SavedSummary[] {
+  search(query: string, workspace?: string, limit = DEFAULT_SEARCH_LIMIT): SavedSummary[] {
     const terms = searchTerms(query);
     const hits: Array<Match & { entry: Entry; here: boolean }> = [];
     for (const entry of this.entries().values()) {
