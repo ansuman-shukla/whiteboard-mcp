@@ -114,6 +114,7 @@ workspace folder ("space")
 - **One board per chat**, created on its first drawing, kept in `~/.whiteboard-mcp/canvases/`. Closing the chat or restarting keeps it.
 - **Boards belong to the workspace folder** (the agent's MCP root, else its working directory). Chats in the same folder can read and draw on each other's boards; other folders don't see them.
 - **How a chat is identified**, first match wins: the host's chat id in tool-call `_meta` (`sessionId`, `conversationId`, `chatId`…), `WHITEBOARD_CHAT_ID`, the output of `WHITEBOARD_CHAT_COMMAND`, else the MCP server process. Set one of the env vars if your agent restarts its MCP servers within a chat and you want it to keep its board.
+- **Per harness**: terminal agents (Claude Code, Codex, OpenCode…) start the MCP server with each session, so every new session gets a fresh board (two sessions in one folder never share one). Devin Desktop starts one server per chat too; through Devin Switch the board follows the conversation id (`WHITEBOARD_CHAT_COMMAND`), even across account handoffs. A host that shares one server between several chats must pass the chat id in `_meta`, otherwise those chats share a board. Another chat's board is only used when asked: `canvas_open {"board":"<title or id>"}`.
 
 ## Where the board appears
 
@@ -124,15 +125,16 @@ canvas_open / canvas_draw while nobody is watching
    └─ elsewhere (terminal agents) → your browser
 ```
 
-Panel hosts connect to the daemon at `/ws/host` (token-protected) and say which folders they show; the daemon asks the one showing the board's workspace (else the focused one) to open it. The agent never gets the board link while a panel can show it, and it is told not to open board links in browser or preview tools.
+Panel hosts connect to the daemon at `/ws/host` (token-protected) and say which folders they show, plus an optional `hostId` naming their window. The board opens in the chat's own window: the host whose `hostId` matches the agent's `WHITEBOARD_HOST_ID` (else Windsurf/Devin Desktop's `WINDSURF_EXT_HOST_PID`), otherwise a window showing the board's workspace (focused first). It never opens in an unrelated window, where it would hide that window's own board. Hosts show each board in its own tab and never retarget another board's tab, so chats never replace each other's boards. The agent never gets the board link while a panel can show it, and it is told not to open board links in browser or preview tools.
 
 ## Configuration
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `WHITEBOARD_OPEN` | `auto` | When no panel host is connected: `auto` (browser, but nothing inside an editor), `browser`, `none`, or a command template containing `{url}` (run without a shell), e.g. `firefox --new-window {url}` |
+| `WHITEBOARD_OPEN` | `auto` | When no panel host of the chat's window or workspace is connected: `auto` (browser, but nothing inside an editor), `browser`, `none`, or a command template containing `{url}` (run without a shell), e.g. `firefox --new-window {url}` |
 | `WHITEBOARD_CHAT_ID` | | Fixed chat id for this MCP server process |
 | `WHITEBOARD_CHAT_COMMAND` | | Command printing the current chat id (run once, without a shell), for hosts that restart MCP servers within a chat |
+| `WHITEBOARD_HOST_ID` | `WINDSURF_EXT_HOST_PID` | The `hostId` of the editor window (panel host) this agent runs in, so its boards open there |
 | `WHITEBOARD_PORT` | `47428` | Daemon port (falls back to a free port if taken by something else) |
 | `WHITEBOARD_HOME` | `~/.whiteboard-mcp` | State: boards, token, daemon info, logs |
 | `WHITEBOARD_IDLE_MS` | `1800000` | Daemon exits after this long with no viewers or requests (`0` = never) |
