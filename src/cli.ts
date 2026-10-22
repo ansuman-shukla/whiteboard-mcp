@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { CanvasClient } from './canvas/client.js';
 import { runDaemon } from './canvas/daemon.js';
 import { APP_NAME, VERSION, statePath, type DaemonInfo } from './shared/config.js';
+import { findBoard } from './mcp/find.js';
 import { startMcpServer } from './mcp/server.js';
 import { Session } from './mcp/session.js';
 import { TOOLS, ToolContext, callTool, getTool, type ToolResult } from './mcp/tools.js';
@@ -140,9 +141,10 @@ async function url(board: string | undefined): Promise<number> {
     out(client.viewerUrl(ref.id));
     return 0;
   }
-  const match = (await client.list()).find((b) => b.workspace === ctx.session.workspace && (b.id === board || b.title.toLowerCase() === board.toLowerCase()));
-  if (!match) return fail(`no board "${board}" in ${ctx.session.workspace}`);
-  out(client.viewerUrl(match.id));
+  const lookup = findBoard(await client.list(), board, ctx.session.workspace);
+  if ('several' in lookup) return fail(`several boards in other folders are called "${board}"; pass one id: ${lookup.several.map((b) => `${b.id} (${b.workspace ?? 'no folder'})`).join(', ')}`);
+  if ('none' in lookup) return fail(`no board "${board}" in any folder`);
+  out(client.viewerUrl(lookup.found.id));
   return 0;
 }
 
