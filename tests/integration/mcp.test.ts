@@ -74,7 +74,7 @@ beforeAll(async () => {
     WHITEBOARD_OPEN: 'none',
     WHITEBOARD_IDLE_MS: '60000',
   };
-  delete env.WHITEBOARD_WORKSPACE;
+  for (const key of ['WHITEBOARD_WORKSPACE', 'WHITEBOARD_CHAT_ID', 'WHITEBOARD_CHAT_COMMAND']) delete env[key];
   delete env.WHITEBOARD_EXPORT_DIR;
 });
 
@@ -136,6 +136,7 @@ describe('MCP server over stdio (SDK client)', () => {
     expect(read.text).toContain('[Beta]');
     expect(read.text).toMatch(/arrow "ab" a → b \[calls\]/);
     expect(read.text).toContain('No human changes since your last read.');
+    expect(read.text).toMatch(/^Board "How MCP works" rev \d+/);
   });
 
   it('moves an element when the same id is drawn again', async () => {

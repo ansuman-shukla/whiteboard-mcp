@@ -43,7 +43,7 @@ async function humanEdit(canvasId: string): Promise<void> {
 beforeAll(async () => {
   mkdirSync(workspace, { recursive: true });
   env = { ...process.env, WHITEBOARD_HOME: home, WHITEBOARD_PORT: String(await freePort()), WHITEBOARD_OPEN: 'none', WHITEBOARD_IDLE_MS: '60000' };
-  delete env.WHITEBOARD_WORKSPACE;
+  for (const key of ['WHITEBOARD_WORKSPACE', 'WHITEBOARD_CHAT_ID', 'WHITEBOARD_CHAT_COMMAND']) delete env[key];
 });
 
 afterAll(async () => {
