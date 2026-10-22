@@ -1,11 +1,12 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, statSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
+import { removeTempDir } from '../helpers/cleanup.js';
 import WebSocket from 'ws';
 import { CanvasClient, CanvasError, type ConnectOptions } from '../../src/canvas/client.js';
 import type { DaemonInfo } from '../../src/shared/config.js';
@@ -93,7 +94,7 @@ afterAll(async () => {
   for (const pid of pids) if (alive(pid)) process.kill(pid, 'SIGKILL');
   // Windows releases a killed process's open files a moment later (EBUSY), so wait and retry.
   await until(() => [...pids].every((pid) => !alive(pid))).catch(() => {});
-  for (const dir of roots) rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  for (const dir of roots) removeTempDir(dir);
 });
 
 describe('daemon discovery and autostart', () => {

@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { homedir, tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
@@ -9,6 +9,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { ListRootsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { removeTempDir } from '../helpers/cleanup.js';
 import WebSocket from 'ws';
 
 const repo = fileURLToPath(new URL('../..', import.meta.url));
@@ -94,7 +95,7 @@ afterAll(async () => {
   } catch {
     // daemon never started or already gone
   }
-  rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  removeTempDir(root);
 });
 
 describe('MCP server over stdio (SDK client)', () => {

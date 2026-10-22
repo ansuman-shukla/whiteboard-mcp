@@ -1,8 +1,9 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { request as httpRequest } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { removeTempDir } from '../helpers/cleanup.js';
 import WebSocket from 'ws';
 import { startDaemon, type Daemon, type DaemonOptions } from '../../src/canvas/daemon.js';
 import type { ExElement, ServerMessage } from '../../src/shared/protocol.js';
@@ -126,7 +127,7 @@ beforeEach(() => {
 afterEach(async () => {
   for (const ws of sockets.splice(0)) ws.terminate();
   await Promise.all(daemons.splice(0).map((d) => d.close()));
-  rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  removeTempDir(root);
 });
 
 describe('http security', () => {
