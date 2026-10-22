@@ -17,7 +17,7 @@ Usage:
   ${APP_NAME} call <tool> [json|-]  run a tool once (JSON args inline or on stdin)
   ${APP_NAME} tools [--json]       list tools and their input schemas
   ${APP_NAME} open                 show your board (panel or browser)
-  ${APP_NAME} url [board]          print a board's viewer URL (yours, or a workspace board by id/title)
+  ${APP_NAME} url [board]          print a board's viewer URL (yours, or any board by id/title)
   ${APP_NAME} status               show the canvas daemon and its boards
   ${APP_NAME} stop                 stop the canvas daemon
   ${APP_NAME} serve                run the canvas daemon in the foreground
