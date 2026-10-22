@@ -316,7 +316,7 @@ async function findSaved(client: CanvasClient, wanted: string, workspace: string
 
 const savedLine = (s: SavedSummary, workspace: string): string => {
   const where = s.workspace === workspace ? 'this workspace' : s.workspace ? `from ${basename(s.workspace)}` : 'no workspace';
-  return `- "${s.name}" [${s.id}] ${s.elementCount} el, saved ${new Date(s.savedAt).toISOString().slice(0, 10)}, ${where}${s.snippet ? `: "${s.snippet}"` : ''}`;
+  return `- "${s.name}" [${s.id}] ${s.elementCount} el, saved ${new Date(s.savedAt).toLocaleDateString('en-CA')}, ${where}${s.snippet ? `: "${s.snippet}"` : ''}`;
 };
 
 async function drawOnce(client: CanvasClient, ref: CanvasRef, specs: ElementSpec[]) {
