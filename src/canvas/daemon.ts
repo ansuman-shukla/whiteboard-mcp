@@ -4,11 +4,11 @@ import { readFile } from 'node:fs/promises';
 import { createServer, STATUS_CODES, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { Duplex } from 'node:stream';
-import { extname, join, resolve, sep } from 'node:path';
+import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer, WebSocket, type RawData } from 'ws';
 import { APP_NAME, VERSION, preferredPort, stateDir, statePath, type DaemonInfo } from '../shared/config.js';
-import { CANVAS_ID_PATTERN, type Actor, type BinaryFile, type ServerMessage, type ViewerRequestType } from '../shared/protocol.js';
+import { API, CANVAS_ID_PATTERN, type Actor, type BinaryFile, type CanvasMeta, type ServerHostMessage, type ServerMessage, type ViewerRequestType } from '../shared/protocol.js';
 import { CanvasStore, NotFoundError, ValidationError, validateElements } from './store.js';
 
 export interface DaemonOptions {
@@ -18,6 +18,8 @@ export interface DaemonOptions {
   token?: string;
   idleExitMs?: number;
   heartbeatMs?: number;
+  /** How long a panel host may take to show a board. */
+  showTimeoutMs?: number;
   frontendDir?: string;
   onIdle?: () => void;
   log?: (line: string) => void;
@@ -25,6 +27,7 @@ export interface DaemonOptions {
 
 export interface DaemonStats {
   viewers: number;
+  hosts: number;
   pending: number;
   loadedCanvases: number;
   sockets: number;
@@ -50,6 +53,28 @@ interface Viewer {
 interface Pending {
   viewer: Viewer;
   finish: (status: number, body: unknown) => void;
+}
+
+/** An IDE extension that shows boards in a panel beside the chat. */
+interface Host {
+  ws: WebSocket;
+  folders: string[];
+  focused: boolean;
+  lastActive: number;
+  alive: boolean;
+}
+
+interface PendingShow {
+  host: Host;
+  finish: (status: number, body: unknown) => void;
+}
+
+const DEFAULT_SHOW_TIMEOUT_MS = 5_000;
+const MAX_HOST_FOLDERS = 64;
+
+function contains(folder: string, target: string): boolean {
+  const rel = relative(folder, target);
+  return rel === '' || (!!rel && !rel.startsWith('..') && !isAbsolute(rel));
 }
 
 const MAX_BODY_BYTES = 30 * 1024 * 1024;
@@ -177,6 +202,8 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
 
   const viewersByCanvas = new Map<string, Set<Viewer>>();
   const pending = new Map<string, Pending>();
+  const hosts = new Set<Host>();
+  const pendingShows = new Map<string, PendingShow>();
   const timers: NodeJS.Timeout[] = [];
   let allowedHosts = new Set<string>();
   let allowedOrigins = new Set<string>();
@@ -246,6 +273,35 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
     });
   }
 
+  /** The host showing the board's workspace wins, then the focused window, then the most recent. */
+  function pickHost(workspace: string | undefined): Host | undefined {
+    let best: Host | undefined;
+    const rank = (h: Host) => (workspace && h.folders.some((f) => contains(f, workspace)) ? 2 : 0) + (h.focused ? 1 : 0);
+    for (const h of hosts) {
+      if (h.ws.readyState !== WebSocket.OPEN) continue;
+      if (!best || rank(h) > rank(best) || (rank(h) === rank(best) && h.lastActive > best.lastActive)) best = h;
+    }
+    return best;
+  }
+
+  function show(canvasId: string, workspace: string | undefined, res: ServerResponse): Promise<void> {
+    const host = pickHost(workspace);
+    if (!host) return Promise.resolve(sendJson(res, 409, { error: 'no_host' }));
+    const reqId = randomUUID();
+    return new Promise((done) => {
+      const finish = (status: number, body: unknown) => {
+        if (!pendingShows.delete(reqId)) return;
+        clearTimeout(timer);
+        sendJson(res, status, body);
+        done();
+      };
+      const timer = setTimeout(() => finish(504, { error: 'timeout' }), opts.showTimeoutMs ?? DEFAULT_SHOW_TIMEOUT_MS);
+      pendingShows.set(reqId, { host, finish });
+      const msg: ServerHostMessage = { t: 'show', reqId, canvasId, title: store.summaryOf(canvasId).title };
+      host.ws.send(JSON.stringify(msg));
+    });
+  }
+
   async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
     const parts = url.pathname.split('/').slice(3);
     const method = req.method ?? 'GET';
@@ -269,8 +325,14 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
         requireCanvas();
         return sendJson(res, 200, store.snapshot(id, viewerCount(id)));
       case 'PUT ': {
-        const { title } = await readJson(req);
-        return sendJson(res, 200, { ...store.ensure(id, title as string | undefined), viewers: viewerCount(id) });
+        const { title, workspace, chat } = await readJson(req);
+        return sendJson(res, 200, { ...store.ensure(id, { title, workspace, chat } as CanvasMeta), viewers: viewerCount(id) });
+      }
+      case 'POST show': {
+        const { workspace } = await readJson(req);
+        if (workspace !== undefined && typeof workspace !== 'string') throw new HttpError(400, 'workspace must be a string');
+        requireCanvas();
+        return show(id, workspace as string | undefined, res);
       }
       case 'DELETE ':
         if (!store.remove(id)) throw new HttpError(404, 'canvas_not_found');
@@ -308,7 +370,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
         return relay(id, body.type as ViewerRequestType, body.payload, Math.min(timeoutMs, MAX_REQUEST_TIMEOUT_MS), res);
       }
     }
-    if (['', 'elements', 'clear', 'changes', 'notes', 'request'].includes(sub)) throw new HttpError(405, 'method_not_allowed');
+    if (['', 'elements', 'clear', 'changes', 'notes', 'request', 'show'].includes(sub)) throw new HttpError(405, 'method_not_allowed');
     throw new HttpError(404, 'not_found');
   }
 
@@ -361,7 +423,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
       if (url.pathname !== '/api/canvases' && !url.pathname.startsWith('/api/canvases/')) throw new HttpError(404, 'not_found');
       return handleApi(req, res, url);
     }
-    if (url.pathname === '/ws') return sendText(res, 426, 'upgrade required');
+    if (url.pathname === '/ws' || url.pathname === API.hostWs) return sendText(res, 426, 'upgrade required');
     return serveStatic(req, res, url);
   }
 
@@ -417,6 +479,42 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
     }
   }
 
+  function onHostMessage(host: Host, data: RawData): void {
+    host.lastActive = ++activitySeq;
+    let msg: unknown;
+    try {
+      msg = JSON.parse(data.toString());
+    } catch {
+      return;
+    }
+    if (!isObject(msg)) return;
+    if (msg.t === 'hello' || msg.t === 'state') {
+      if (Array.isArray(msg.folders)) {
+        host.folders = msg.folders.filter((f): f is string => typeof f === 'string' && isAbsolute(f) && f.length <= 4096).slice(0, MAX_HOST_FOLDERS);
+      }
+      if (typeof msg.focused === 'boolean') host.focused = msg.focused;
+    } else if (msg.t === 'shown' && typeof msg.reqId === 'string') {
+      const entry = pendingShows.get(msg.reqId);
+      if (entry?.host !== host) return;
+      if (msg.ok === true) entry.finish(200, { shown: true });
+      else entry.finish(502, { error: typeof msg.error === 'string' && msg.error ? msg.error : 'host_error' });
+    }
+  }
+
+  function onHost(ws: WebSocket): void {
+    const host: Host = { ws, folders: [], focused: false, lastActive: ++activitySeq, alive: true };
+    hosts.add(host);
+    ws.on('pong', () => {
+      host.alive = true;
+    });
+    ws.on('message', (data) => onHostMessage(host, data));
+    ws.on('error', (err) => log(`host ws error: ${err.message}`));
+    ws.on('close', () => {
+      hosts.delete(host);
+      for (const entry of [...pendingShows.values()]) if (entry.host === host) entry.finish(502, { error: 'host_disconnected' });
+    });
+  }
+
   function onConnection(ws: WebSocket, canvasId: string): void {
     const viewer: Viewer = { ws, canvasId, visible: false, lastActive: ++activitySeq, alive: true };
     let viewers = viewersByCanvas.get(canvasId);
@@ -452,10 +550,11 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
     lastActivityAt = Date.now();
     const url = new URL(req.url ?? '/', 'http://localhost');
     if (closing) return rejectUpgrade(socket, 503);
-    if (url.pathname !== '/ws') return rejectUpgrade(socket, 404);
+    if (url.pathname !== '/ws' && url.pathname !== API.hostWs) return rejectUpgrade(socket, 404);
     if (!allowedHosts.has(req.headers.host ?? '')) return rejectUpgrade(socket, 403);
     if (req.headers.origin !== undefined && !allowedOrigins.has(req.headers.origin)) return rejectUpgrade(socket, 403);
     if (!authorized(req, url)) return rejectUpgrade(socket, 401);
+    if (url.pathname === API.hostWs) return wss.handleUpgrade(req, socket, head, onHost);
     const canvasId = url.searchParams.get('canvas') ?? '';
     if (!CANVAS_ID_PATTERN.test(canvasId)) return rejectUpgrade(socket, 400);
     wss.handleUpgrade(req, socket, head, (ws) => onConnection(ws, canvasId));
@@ -482,15 +581,15 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
     timers.push(t);
   };
   every(heartbeatMs, () => {
-    for (const viewers of viewersByCanvas.values()) {
-      for (const v of viewers) {
-        if (!v.alive) {
-          v.ws.terminate();
-          continue;
-        }
-        v.alive = false;
-        v.ws.ping();
+    const peers: Array<Viewer | Host> = [...hosts];
+    for (const viewers of viewersByCanvas.values()) peers.push(...viewers);
+    for (const peer of peers) {
+      if (!peer.alive) {
+        peer.ws.terminate();
+        continue;
       }
+      peer.alive = false;
+      peer.ws.ping();
     }
   });
   every(UNLOAD_INTERVAL_MS, () => store.unloadIdle((id) => viewersByCanvas.has(id), UNLOAD_IDLE_MS));
@@ -498,7 +597,8 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
     const onIdle = opts.onIdle;
     let fired = false;
     every(Math.min(Math.max(idleExitMs / 4, 25), 30_000), () => {
-      if (fired || closing || wss.clients.size > 0 || Date.now() - lastActivityAt < idleExitMs) return;
+      // Panel hosts stay connected for the whole IDE session; only viewers and requests keep the daemon alive.
+      if (fired || closing || viewersByCanvas.size > 0 || Date.now() - lastActivityAt < idleExitMs) return;
       fired = true;
       onIdle();
     });
@@ -508,6 +608,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
     closing ??= (async () => {
       for (const t of timers) clearInterval(t);
       for (const entry of [...pending.values()]) entry.finish(503, { error: 'shutting_down' });
+      for (const entry of [...pendingShows.values()]) entry.finish(503, { error: 'shutting_down' });
       const closed = [new Promise<void>((r) => server.close(() => r()))];
       for (const ws of wss.clients) {
         closed.push(new Promise((r) => ws.once('close', r)));
@@ -529,7 +630,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
     stats: () => {
       let viewers = 0;
       for (const set of viewersByCanvas.values()) viewers += set.size;
-      return { viewers, pending: pending.size, loadedCanvases: store.loadedCount, sockets: wss.clients.size };
+      return { viewers, hosts: hosts.size, pending: pending.size + pendingShows.size, loadedCanvases: store.loadedCount, sockets: wss.clients.size };
     },
   };
 }

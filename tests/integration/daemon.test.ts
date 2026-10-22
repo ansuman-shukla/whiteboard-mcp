@@ -484,3 +484,73 @@ describe('lifecycle', () => {
     }, 5000);
   });
 });
+
+describe('panel hosts', () => {
+  async function host(d: Daemon, hello?: { folders: string[]; focused: boolean }, opts: WebSocket.ClientOptions = {}, token = d.token) {
+    const ws = new WebSocket(`ws://127.0.0.1:${d.port}/ws/host?token=${token}`, opts);
+    sockets.push(ws);
+    await new Promise((resolve, reject) => {
+      ws.once('open', resolve);
+      ws.once('error', reject);
+    });
+    const shows: Array<{ t: string; reqId: string; canvasId: string; title: string }> = [];
+    ws.on('message', (m) => shows.push(JSON.parse(String(m))));
+    if (hello) ws.send(JSON.stringify({ t: 'hello', ...hello }));
+    await until(() => d.stats().hosts > 0);
+    await sleep(30);
+    return { ws, shows, reply: (reqId: string, ok = true, error?: string) => ws.send(JSON.stringify({ t: 'shown', reqId, ok, error })) };
+  }
+  const board = (d: Daemon, id: string, workspace: string) => apiJson(d, `/api/canvases/${id}`, { method: 'PUT', body: { title: 'How MCP works', workspace, chat: 'chat-1' } });
+
+  it('stores board metadata and shows it in the window of its workspace, else the focused one', async () => {
+    const d = await start();
+    expect((await board(d, 'mcp', '/work/a')).body).toMatchObject({ title: 'How MCP works', workspace: '/work/a', chat: 'chat-1' });
+    const a = await host(d, { folders: ['/work/a'], focused: false });
+    const b = await host(d, { folders: ['/work/b'], focused: true });
+
+    const first = apiJson(d, '/api/canvases/mcp/show', { body: { workspace: '/work/a' } });
+    await until(() => a.shows.length === 1);
+    expect(a.shows[0]).toMatchObject({ t: 'show', canvasId: 'mcp', title: 'How MCP works' });
+    expect(b.shows).toEqual([]);
+    a.reply(a.shows[0]!.reqId);
+    expect(await first).toEqual({ status: 200, body: { shown: true } });
+
+    const second = apiJson(d, '/api/canvases/mcp/show', { body: { workspace: '/work/a-sibling' } });
+    await until(() => b.shows.length === 1);
+    a.reply(b.shows[0]!.reqId); // a reply from the wrong host is ignored
+    b.reply(b.shows[0]!.reqId);
+    expect((await second).status).toBe(200);
+    expect(a.shows).toHaveLength(1);
+  });
+
+  it('answers 409 without a host, 502 on failure or disconnect, 504 on timeout, 404 for unknown boards', async () => {
+    const d = await start({ showTimeoutMs: 150 });
+    await board(d, 'mcp', '/w');
+    expect(await apiJson(d, '/api/canvases/mcp/show', { body: {} })).toEqual({ status: 409, body: { error: 'no_host' } });
+    expect((await apiJson(d, '/api/canvases/nope/show', { body: {} })).status).toBe(404);
+    const h = await host(d, { folders: ['/w'], focused: true });
+    const failing = apiJson(d, '/api/canvases/mcp/show', { body: { workspace: '/w' } });
+    await until(() => h.shows.length === 1);
+    h.reply(h.shows[0]!.reqId, false, 'panel failed');
+    expect(await failing).toEqual({ status: 502, body: { error: 'panel failed' } });
+    expect((await apiJson(d, '/api/canvases/mcp/show', { body: { workspace: '/w' } })).status).toBe(504);
+    const dropped = apiJson(d, '/api/canvases/mcp/show', { body: { workspace: '/w' } });
+    await until(() => h.shows.length === 3);
+    h.ws.close();
+    expect(await dropped).toEqual({ status: 502, body: { error: 'host_disconnected' } });
+    await until(() => d.stats().hosts === 0 && d.stats().pending === 0);
+  });
+
+  it('requires the token and the daemon origin for hosts', async () => {
+    const d = await start();
+    await expect(host(d, undefined, {}, 'wrong')).rejects.toThrow(/401/);
+    await expect(host(d, undefined, { origin: 'http://evil.test' })).rejects.toThrow(/403/);
+  });
+
+  it('a connected host does not keep an otherwise idle daemon alive', async () => {
+    let idle = 0;
+    const d = await start({ idleExitMs: 150, onIdle: () => idle++ });
+    await host(d, { folders: ['/w'], focused: true });
+    await until(() => idle === 1, 2000);
+  });
+});
