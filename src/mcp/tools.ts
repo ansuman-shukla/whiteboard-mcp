@@ -62,6 +62,16 @@ export class ToolContext {
 const IDE_ENV = ['WINDSURF_EXT_HOST_PID', 'VSCODE_PID', 'VSCODE_IPC_HOOK_CLI', 'CURSOR_TRACE_ID'];
 /** Agents running inside an editor should get the board in a panel, never a separate browser window. */
 const insideIde = (): boolean => IDE_ENV.some((k) => process.env[k]) || process.env.TERM_PROGRAM === 'vscode';
+
+/**
+ * The editor window this agent runs in, as the `hostId` its panel host announces, so the board opens
+ * beside this chat and not in another window: `WHITEBOARD_HOST_ID` when a host sets it explicitly, else
+ * Windsurf/Devin Desktop's `WINDSURF_EXT_HOST_PID` (the extension host that started the chat, which is
+ * the process a panel extension runs in).
+ */
+export function hostHint(env: NodeJS.ProcessEnv = process.env): string | undefined {
+  return env.WHITEBOARD_HOST_ID?.trim() || env.WINDSURF_EXT_HOST_PID?.trim() || undefined;
+}
 const SHOW_WAIT_MS = 8000;
 
 export class ChatContext {
@@ -99,7 +109,7 @@ export class ChatContext {
   }
 
   private async show(client: CanvasClient, ref: CanvasRef): Promise<{ launched: boolean; note: string }> {
-    if (await client.show(ref.id, this.session.workspace).catch(() => false)) return { launched: true, note: 'Shown to the human beside the chat.' };
+    if (await client.show(ref.id, this.session.workspace, hostHint()).catch(() => false)) return { launched: true, note: 'Shown to the human beside the chat.' };
     const url = client.viewerUrl(ref.id);
     const mode = process.env.WHITEBOARD_OPEN?.trim();
     if (mode === 'none') return { launched: false, note: `Nobody is watching the board; the human can open ${url}.` };

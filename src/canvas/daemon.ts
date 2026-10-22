@@ -58,6 +58,8 @@ interface Pending {
 /** An IDE extension that shows boards in a panel beside the chat. */
 interface Host {
   ws: WebSocket;
+  /** The window's identity from its hello; older hosts don't send one. */
+  hostId?: string;
   folders: string[];
   focused: boolean;
   lastActive: number;
@@ -71,6 +73,7 @@ interface PendingShow {
 
 const DEFAULT_SHOW_TIMEOUT_MS = 5_000;
 const MAX_HOST_FOLDERS = 64;
+const MAX_HOST_ID = 256;
 
 function contains(folder: string, target: string): boolean {
   const rel = relative(folder, target);
@@ -273,19 +276,29 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
     });
   }
 
-  /** The host showing the board's workspace wins, then the focused window, then the most recent. */
-  function pickHost(workspace: string | undefined): Host | undefined {
+  /**
+   * The chat's own window (hostId equals the hint) wins. Otherwise a window whose folders contain the
+   * board's workspace, focused first, then the most recent; a window known to be another one than the
+   * hinted one is never used. No match means no host: showing a chat's board in an unrelated window
+   * would hide that window's own board.
+   */
+  function pickHost(workspace: string | undefined, hint: string | undefined): Host | undefined {
+    const rank = (h: Host): number => {
+      if (hint !== undefined && h.hostId !== undefined) return h.hostId === hint ? 3 : 0;
+      if (!workspace || !h.folders.some((f) => contains(f, workspace))) return 0;
+      return h.focused ? 2 : 1;
+    };
     let best: Host | undefined;
-    const rank = (h: Host) => (workspace && h.folders.some((f) => contains(f, workspace)) ? 2 : 0) + (h.focused ? 1 : 0);
+    let bestRank = 0;
     for (const h of hosts) {
-      if (h.ws.readyState !== WebSocket.OPEN) continue;
-      if (!best || rank(h) > rank(best) || (rank(h) === rank(best) && h.lastActive > best.lastActive)) best = h;
+      const r = h.ws.readyState === WebSocket.OPEN ? rank(h) : 0;
+      if (r > bestRank || (r > 0 && r === bestRank && h.lastActive > best!.lastActive)) [best, bestRank] = [h, r];
     }
     return best;
   }
 
-  function show(canvasId: string, workspace: string | undefined, res: ServerResponse): Promise<void> {
-    const host = pickHost(workspace);
+  function show(canvasId: string, workspace: string | undefined, hint: string | undefined, res: ServerResponse): Promise<void> {
+    const host = pickHost(workspace, hint);
     if (!host) return Promise.resolve(sendJson(res, 409, { error: 'no_host' }));
     const reqId = randomUUID();
     return new Promise((done) => {
@@ -329,10 +342,11 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
         return sendJson(res, 200, { ...store.ensure(id, { title, workspace, chat } as CanvasMeta), viewers: viewerCount(id) });
       }
       case 'POST show': {
-        const { workspace } = await readJson(req);
+        const { workspace, host: hint } = await readJson(req);
         if (workspace !== undefined && typeof workspace !== 'string') throw new HttpError(400, 'workspace must be a string');
+        if (hint !== undefined && (typeof hint !== 'string' || !hint || hint.length > MAX_HOST_ID)) throw new HttpError(400, 'host must be a non-empty string');
         requireCanvas();
-        return show(id, workspace as string | undefined, res);
+        return show(id, workspace as string | undefined, hint as string | undefined, res);
       }
       case 'DELETE ':
         if (!store.remove(id)) throw new HttpError(404, 'canvas_not_found');
@@ -493,6 +507,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
         host.folders = msg.folders.filter((f): f is string => typeof f === 'string' && isAbsolute(f) && f.length <= 4096).slice(0, MAX_HOST_FOLDERS);
       }
       if (typeof msg.focused === 'boolean') host.focused = msg.focused;
+      if (msg.t === 'hello' && typeof msg.hostId === 'string' && msg.hostId && msg.hostId.length <= MAX_HOST_ID) host.hostId = msg.hostId;
     } else if (msg.t === 'shown' && typeof msg.reqId === 'string') {
       const entry = pendingShows.get(msg.reqId);
       if (entry?.host !== host) return;

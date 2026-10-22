@@ -1,10 +1,11 @@
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { removeTempDir } from '../helpers/cleanup.js';
 
 const cli = join(fileURLToPath(new URL('../..', import.meta.url)), 'dist', 'cli.js');
 const root = realpathSync(mkdtempSync(join(tmpdir(), 'exl-cli-')));
@@ -58,7 +59,7 @@ afterAll(async () => {
   } catch {
     // daemon gone
   }
-  rmSync(root, { recursive: true, force: true });
+  removeTempDir(root);
 });
 
 describe('cli', () => {

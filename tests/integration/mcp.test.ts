@@ -1,14 +1,15 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { homedir, tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { ListRootsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { removeTempDir } from '../helpers/cleanup.js';
 import WebSocket from 'ws';
 
 const repo = fileURLToPath(new URL('../..', import.meta.url));
@@ -32,10 +33,12 @@ function freePort(): Promise<number> {
   });
 }
 
-async function connect(opts: { cwd?: string; roots?: string; env?: Record<string, string> } = {}): Promise<Client> {
+async function connect(opts: { cwd?: string; roots?: string; env?: Record<string, string>; unset?: string[] } = {}): Promise<Client> {
   const client = new Client({ name: 'test', version: '1.0.0' }, { capabilities: opts.roots ? { roots: { listChanged: true } } : {} });
   if (opts.roots) client.setRequestHandler(ListRootsRequestSchema, async () => ({ roots: [{ uri: pathToFileURL(opts.roots!).href, name: 'root' }] }));
-  await client.connect(new StdioClientTransport({ command: process.execPath, args: [cli], env: { ...env, ...opts.env }, cwd: opts.cwd ?? workspace, stderr: 'ignore' }));
+  const childEnv = { ...env, ...opts.env };
+  for (const key of opts.unset ?? []) delete childEnv[key];
+  await client.connect(new StdioClientTransport({ command: process.execPath, args: [cli], env: childEnv, cwd: opts.cwd ?? workspace, stderr: 'ignore' }));
   clients.push(client);
   return client;
 }
@@ -74,7 +77,8 @@ beforeAll(async () => {
     WHITEBOARD_OPEN: 'none',
     WHITEBOARD_IDLE_MS: '60000',
   };
-  for (const key of ['WHITEBOARD_WORKSPACE', 'WHITEBOARD_CHAT_ID', 'WHITEBOARD_CHAT_COMMAND']) delete env[key];
+  // Ignore the identity of the agent running these tests (its chat and its editor window).
+  for (const key of ['WHITEBOARD_WORKSPACE', 'WHITEBOARD_CHAT_ID', 'WHITEBOARD_CHAT_COMMAND', 'WHITEBOARD_HOST_ID', 'WINDSURF_EXT_HOST_PID']) delete env[key];
   delete env.WHITEBOARD_EXPORT_DIR;
 });
 
@@ -91,7 +95,7 @@ afterAll(async () => {
   } catch {
     // daemon never started or already gone
   }
-  rmSync(root, { recursive: true, force: true });
+  removeTempDir(root);
 });
 
 describe('MCP server over stdio (SDK client)', () => {
@@ -332,6 +336,96 @@ describe('showing boards', () => {
     expect(drawn.text).not.toMatch(/https?:\/\//);
     expect(shows).toHaveLength(1);
     expect(shows[0]!.canvasId).toBe(boardId((await call(client, 'canvas_open', { open: false })).text));
+  });
+
+  /** A panel host (editor window) that shows every board it is asked to. */
+  async function panelHost(hello: { folders: string[]; hostId?: string; focused?: boolean }) {
+    const { port, token } = daemon();
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws/host?token=${token}`);
+    const shows: string[] = [];
+    ws.on('message', (m) => {
+      const msg = JSON.parse(String(m)) as { reqId: string; canvasId: string };
+      shows.push(msg.canvasId);
+      ws.send(JSON.stringify({ t: 'shown', reqId: msg.reqId, ok: true }));
+    });
+    await new Promise((r) => ws.once('open', r));
+    ws.send(JSON.stringify({ t: 'hello', focused: false, ...hello }));
+    await new Promise((r) => setTimeout(r, 100));
+    return { shows, close: () => ws.close() };
+  }
+
+  it("shows each chat's first drawing only in the window that chat runs in, even when both windows show the same folder", async () => {
+    // Desktop starts every chat's MCP server with its window's extension-host pid; the window's panel host says hello with it.
+    const chatA = await connect({ env: { WINDSURF_EXT_HOST_PID: '45824', WHITEBOARD_OPEN: '' } });
+    const chatB = await connect({ env: { WINDSURF_EXT_HOST_PID: '64248', WHITEBOARD_OPEN: '' } });
+    const windowA = await panelHost({ folders: [workspace], hostId: '45824' });
+    const windowB = await panelHost({ folders: [workspace], hostId: '64248', focused: true });
+    try {
+      const drawnB = await call(chatB, 'canvas_draw', { elements: [{ id: 'b', type: 'rectangle', x: 0, y: 0, label: 'B' }] });
+      const drawnA = await call(chatA, 'canvas_draw', { elements: [{ id: 'a', type: 'rectangle', x: 0, y: 0, label: 'A' }] });
+      expect(drawnA.text).toContain('Shown to the human beside the chat.');
+      expect(drawnB.text).toContain('Shown to the human beside the chat.');
+      const boardA = boardId((await call(chatA, 'canvas_open', { open: false })).text);
+      const boardB = boardId((await call(chatB, 'canvas_open', { open: false })).text);
+      expect(boardA).not.toBe(boardB);
+      expect(windowA.shows).toEqual([boardA]);
+      expect(windowB.shows).toEqual([boardB]);
+    } finally {
+      windowA.close();
+      windowB.close();
+    }
+  });
+
+  it('WHITEBOARD_HOST_ID names the window explicitly and wins over the editor variable', async () => {
+    const chat = await connect({ env: { WINDSURF_EXT_HOST_PID: '45824', WHITEBOARD_HOST_ID: 'my-window', WHITEBOARD_OPEN: '' } });
+    const editorWindow = await panelHost({ folders: [workspace], hostId: '45824', focused: true });
+    const named = await panelHost({ folders: [], hostId: 'my-window' });
+    try {
+      await call(chat, 'canvas_draw', { elements: [{ id: 'n', type: 'rectangle', x: 0, y: 0 }] });
+      expect(named.shows).toEqual([boardId((await call(chat, 'canvas_open', { open: false })).text)]);
+      expect(editorWindow.shows).toEqual([]);
+    } finally {
+      editorWindow.close();
+      named.close();
+    }
+  });
+
+  it('inside an editor, a window other than the chat\'s own never shows its board', async () => {
+    const chat = await connect({ env: { WINDSURF_EXT_HOST_PID: '45824', WHITEBOARD_OPEN: '' } });
+    const otherWindow = await panelHost({ folders: [workspace], hostId: '64248', focused: true });
+    try {
+      const { text } = await call(chat, 'canvas_draw', { elements: [{ id: 'o', type: 'rectangle', x: 0, y: 0 }] });
+      expect(text).toContain('No whiteboard panel is connected');
+      expect(otherWindow.shows).toEqual([]);
+    } finally {
+      otherWindow.close();
+    }
+  });
+
+  it.skipIf(process.platform === 'win32')('outside an editor every new CLI session opens its own fresh board in the browser on its first drawing', async () => {
+    // A stand-in for the platform opener (`open` / `xdg-open`) records what would be opened.
+    const bin = join(root, 'bin');
+    const opened = join(root, 'opened.log');
+    mkdirSync(bin, { recursive: true });
+    for (const name of ['open', 'xdg-open']) writeFileSync(join(bin, name), `#!/bin/sh\nprintf '%s\\n' "$1" >> ${JSON.stringify(opened)}\n`, { mode: 0o755 });
+    const cliSession = () =>
+      connect({ env: { PATH: `${bin}${delimiter}${env.PATH}`, WHITEBOARD_OPEN: '' }, unset: ['VSCODE_PID', 'VSCODE_IPC_HOOK_CLI', 'CURSOR_TRACE_ID', 'TERM_PROGRAM'] });
+    const sessions = [await cliSession(), await cliSession()];
+    const boards: string[] = [];
+    for (const [i, session] of sessions.entries()) {
+      const { text } = await call(session, 'canvas_draw', { elements: [{ id: `s${i}`, type: 'rectangle', x: 0, y: 0, label: `Session ${i}` }] });
+      expect(text).toMatch(/opened with (xdg-)?open/);
+      const own = await call(session, 'canvas_open', { open: false });
+      expect(own.text).toContain(`[Session ${i}]`);
+      expect(own.text).not.toContain(`[Session ${1 - i}]`);
+      boards.push(boardId(own.text));
+    }
+    expect(boards[0]).not.toBe(boards[1]);
+    // The opener runs detached; wait for both launches to land.
+    const read = () => (existsSync(opened) ? readFileSync(opened, 'utf8').trim().split('\n') : []);
+    for (let i = 0; i < 50 && read().length < 2; i++) await new Promise((r) => setTimeout(r, 100));
+    const urls = read();
+    expect(urls.map((u) => /\/c\/([a-z0-9-]+)\?token=/.exec(u)?.[1]).sort()).toEqual([...boards].sort());
   });
 
   it('inside an editor without a panel host it opens nothing and tells the agent not to use a browser', async () => {
