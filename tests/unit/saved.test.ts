@@ -87,6 +87,7 @@ describe('search', () => {
     expect(s.search('auth').map((r) => r.name)).toEqual(['Auth flow', 'Cache layer']);
     expect(s.search('redis AUTH').map((r) => r.name)).toEqual(['Cache layer']);
     expect(s.search('beta jwt').map((r) => r.name)).toEqual(['Auth flow']);
+    expect(s.search(savedId('Billing', WS)).map((r) => r.name)).toEqual(['Billing']);
     expect(s.search('redis stripe')).toEqual([]);
   });
 

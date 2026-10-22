@@ -87,7 +87,7 @@ export class SavedStore {
   }
 
   /**
-   * Boards whose name, folder name or text contain every word of the query (all boards when empty):
+   * Boards whose name, id, folder name or text contain every word of the query (all boards when empty):
    * those of `workspace` first, then by how many words the name matches, then newest first.
    */
   search(query: string, workspace?: string, limit = DEFAULT_LIMIT): SavedSummary[] {
@@ -97,7 +97,7 @@ export class SavedStore {
       const name = entry.name.toLowerCase();
       const folder = entry.workspace ? basename(entry.workspace).toLowerCase() : '';
       const lines = entry.lines.map((l) => l.toLowerCase());
-      if (!terms.every((t) => name.includes(t) || folder.includes(t) || lines.some((l) => l.includes(t)))) continue;
+      if (!terms.every((t) => name.includes(t) || folder.includes(t) || entry.id.includes(t) || lines.some((l) => l.includes(t)))) continue;
       const at = terms.length ? lines.findIndex((l) => terms.some((t) => !name.includes(t) && l.includes(t))) : -1;
       const line = entry.lines[at];
       hits.push({ entry, here: !!workspace && entry.workspace === workspace, nameHits: terms.filter((t) => name.includes(t)).length, ...(line ? { snippet: snippet(line) } : {}) });
