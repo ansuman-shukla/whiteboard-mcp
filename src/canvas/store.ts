@@ -126,7 +126,7 @@ function validateFiles(files: unknown, now: number): BinaryFile[] {
   });
 }
 
-function referencedFileIds(elements: Iterable<ExElement>): Set<string> {
+export function referencedFileIds(elements: Iterable<ExElement>): Set<string> {
   const ids = new Set<string>();
   for (const el of elements) if (!el.isDeleted && el.type === 'image' && typeof el.fileId === 'string') ids.add(el.fileId);
   return ids;
