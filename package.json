@@ -1,0 +1,70 @@
+{
+  "name": "whiteboard-mcp",
+  "version": "0.1.0",
+  "description": "A live whiteboard your coding agent draws on to explain things, side by side with you. MCP server and CLI with a hand-drawn Excalidraw canvas.",
+  "type": "module",
+  "bin": {
+    "whiteboard-mcp": "dist/cli.js"
+  },
+  "files": [
+    "dist/**/*",
+    "skills/**/*",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "npm run build:frontend && npm run build:server",
+    "build:frontend": "vite build",
+    "build:server": "tsc -p tsconfig.json && node -e \"require('fs').chmodSync('dist/cli.js',0o755)\"",
+    "dev": "vite",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p frontend/tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:soak": "npm run build:server && node --expose-gc tests/perf/soak.mjs",
+    "check": "npm run typecheck && npm test && npm run build && npm run test:soak && npm run test:e2e",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@excalidraw/excalidraw": "^0.18.1",
+    "@excalidraw/mermaid-to-excalidraw": "2.2.2",
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "@playwright/test": "1.58.2",
+    "@types/node": "^22.20.5",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@types/ws": "^8.18.2",
+    "@vitejs/plugin-react": "^5.2.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.7",
+    "vitest": "^4.1.12"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "excalidraw",
+    "whiteboard",
+    "diagrams",
+    "coding-agent",
+    "claude-code",
+    "codex",
+    "opencode"
+  ],
+  "license": "MIT",
+  "author": "Ansuman Shukla",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ansuman-shukla/whiteboard-mcp.git"
+  },
+  "homepage": "https://github.com/ansuman-shukla/whiteboard-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/ansuman-shukla/whiteboard-mcp/issues"
+  }
+}
