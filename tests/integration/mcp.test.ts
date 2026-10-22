@@ -106,12 +106,12 @@ describe('MCP server over stdio (SDK client)', () => {
     client = await connect();
   });
 
-  it('negotiates and lists the nine tools', async () => {
+  it('negotiates and lists the eleven tools', async () => {
     expect(client.getServerVersion()?.name).toBe('whiteboard-mcp');
     expect(client.getInstructions()?.length).toBeLessThanOrEqual(700);
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(
-      ['canvas_delete', 'canvas_draw', 'canvas_export', 'canvas_focus', 'canvas_guide', 'canvas_mermaid', 'canvas_open', 'canvas_read', 'canvas_screenshot'].sort(),
+      ['canvas_delete', 'canvas_draw', 'canvas_export', 'canvas_focus', 'canvas_guide', 'canvas_mermaid', 'canvas_open', 'canvas_read', 'canvas_save', 'canvas_screenshot', 'canvas_search'].sort(),
     );
   });
 
@@ -312,6 +312,81 @@ describe('chat scope', () => {
     await before.close();
     const after = await connect({ env: { WHITEBOARD_CHAT_COMMAND: command } });
     expect(boardId((await call(after, 'canvas_open')).text)).toBe(id);
+  });
+});
+
+describe('saved boards', () => {
+  const savedId = (text: string): string => /as "[^"]+" \[([a-z0-9-]+)\]/.exec(text)![1]!;
+
+  it('a later chat in another workspace finds a saved board and loads a frozen copy into its own board', async () => {
+    const first = await connect();
+    const firstBoard = boardId((await call(first, 'canvas_open', { title: 'Payments flow' })).text);
+    await call(first, 'canvas_draw', { elements: [{ id: 'hook', type: 'rectangle', x: 0, y: 0, label: 'Stripe webhook' }] });
+    const save = await call(first, 'canvas_save');
+    expect(save.result.isError).toBeFalsy();
+    expect(save.text).toMatch(/^Saved 2 elements as "Payments flow" \[payments-flow-[0-9a-f]{6}\]/);
+    const id = savedId(save.text);
+    await call(first, 'canvas_delete', { all: true });
+    await first.close();
+
+    const elsewhere = join(root, 'Later Space');
+    mkdirSync(elsewhere, { recursive: true });
+    const later = await connect({ cwd: elsewhere });
+    const found = await call(later, 'canvas_search', { query: 'stripe' });
+    expect(found.text).toContain(`- "Payments flow" [${id}] 2 el, saved `);
+    expect(found.text).toContain('from Main Workspace: "Stripe webhook"');
+    expect((await call(later, 'canvas_search', { query: 'nothing here' })).text).toBe('No saved boards match "nothing here".');
+
+    await call(later, 'canvas_draw', { elements: [{ id: 'mine', type: 'rectangle', x: 0, y: 0, label: 'Mine' }] });
+    const refused = await call(later, 'canvas_open', { saved: id });
+    expect(refused.result.isError).toBe(true);
+    expect(refused.text).toMatch(/has 2 elements; loading "Payments flow" replaces them\. Pass fresh:true/);
+    expect((await call(later, 'canvas_read')).text).toMatch(/^Board this chat's board \(untitled/);
+
+    // Not the exact name or id, but the only board whose text matches.
+    const loaded = await call(later, 'canvas_open', { saved: 'webhook', fresh: true });
+    expect(loaded.result.isError).toBeFalsy();
+    expect(loaded.text).toMatch(/^This chat's board: "Payments flow" \[later-space-[0-9a-f]{6}\]/);
+    expect(loaded.text).toContain(`Loaded a copy of saved board "Payments flow" [${id}]`);
+    expect(loaded.text).toContain('[Stripe webhook]');
+    const read = await call(later, 'canvas_read');
+    expect(read.text).toContain('[Stripe webhook]');
+    expect(read.text).not.toContain('[Mine]');
+    expect(boardId(loaded.text)).not.toBe(firstBoard);
+
+    await call(later, 'canvas_draw', { elements: [{ id: 'more', type: 'ellipse', x: 300, y: 0, label: 'Retry queue' }] });
+    expect((await call(later, 'canvas_search', { query: id })).text).toContain(`[${id}] 2 el,`);
+  });
+
+  it('explains what is missing: a name, content, a unique match', async () => {
+    const chat = await connect();
+    expect((await call(chat, 'canvas_save')).text).toBe('This board has no title yet: pass name.');
+    expect((await call(chat, 'canvas_save', { name: 'Empty' })).text).toBe('The board is empty; draw something before saving it.');
+    await call(chat, 'canvas_draw', { elements: [{ id: 'x', type: 'rectangle', x: 0, y: 0, label: 'X' }] });
+    await call(chat, 'canvas_save', { name: 'Queue one' });
+    await call(chat, 'canvas_save', { name: 'Queue two' });
+    const several = await call(chat, 'canvas_open', { saved: 'queue' });
+    expect(several.result.isError).toBe(true);
+    expect(several.text).toMatch(/^"queue" matches several saved boards; pass one id: "Queue (one|two)"/);
+    expect((await call(chat, 'canvas_open', { saved: 'zzz-none' })).text).toBe('No saved board matches "zzz-none". canvas_search lists them.');
+    expect((await call(chat, 'canvas_open', { saved: 'queue one', board: 'own' })).text).toBe('Pass board or saved, not both.');
+    const latest = await call(chat, 'canvas_search');
+    expect(latest.text).toMatch(/^\d+ saved boards, this workspace first:\n- "Queue two" \[[a-z0-9-]+\] 2 el, saved \d{4}-\d\d-\d\d, this workspace\n/);
+  });
+
+  it('loads into the chat\'s own board even while it is looking at another chat\'s board', async () => {
+    const owner = await connect();
+    const ownerBoard = boardId((await call(owner, 'canvas_open', { title: 'Borrowed board' })).text);
+    await call(owner, 'canvas_draw', { elements: [{ id: 'kept', type: 'rectangle', x: 0, y: 0, label: 'Kept' }] });
+    await call(owner, 'canvas_save', { name: 'Loadable' });
+    const chat = await connect();
+    const own = boardId((await call(chat, 'canvas_open')).text);
+    await call(chat, 'canvas_open', { board: 'Borrowed board' });
+    const loaded = await call(chat, 'canvas_open', { saved: 'Loadable' });
+    expect(loaded.result.isError).toBeFalsy();
+    expect(boardId(loaded.text)).toBe(own);
+    expect((await call(owner, 'canvas_read')).text).toMatch(new RegExp(`^Board "Borrowed board"`));
+    expect(ownerBoard).not.toBe(own);
   });
 });
 
