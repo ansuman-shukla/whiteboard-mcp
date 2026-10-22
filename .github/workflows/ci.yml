@@ -38,7 +38,8 @@ jobs:
       - run: npm run test:soak
 
   e2e:
-    runs-on: ubuntu-latest
+    # Playwright 1.58 ships no Chromium build for Ubuntu 26.04 (ubuntu-latest).
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

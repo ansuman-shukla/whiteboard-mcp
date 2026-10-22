@@ -17,6 +17,9 @@ const pids = new Set<number>();
 const servers: Server[] = [];
 const sockets: WebSocket[] = [];
 
+// Windows has no Unix permission bits or process groups, cannot deliver SIGTERM (it hard-kills),
+// and frees a killed process's port lazily; these POSIX lifecycle checks run on macOS and Linux.
+const posixIt = process.platform === 'win32' ? it.skip : it;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const el = (id: string, over: Partial<ExElement> = {}): ExElement => ({ id, type: 'rectangle', x: 0, y: 0, width: 10, height: 10, version: 1, versionNonce: 1, isDeleted: false, updated: Date.now(), ...over });
 
@@ -92,7 +95,7 @@ afterAll(() => {
 });
 
 describe('daemon discovery and autostart', () => {
-  it('autostarts one detached daemon and reuses it on the next connect', async () => {
+  posixIt('autostarts one detached daemon and reuses it on the next connect', async () => {
     await useHome();
     expect(existsSync(file('daemon.json'))).toBe(false);
     const a = await connect();
@@ -133,7 +136,7 @@ describe('daemon discovery and autostart', () => {
     expect(existsSync(file('daemon.json'))).toBe(false);
   });
 
-  it('ignores a daemon.json whose pid does not match the process on the port', async () => {
+  posixIt('ignores a daemon.json whose pid does not match the process on the port', async () => {
     await useHome();
     const first = await connect();
     const pid = await pidOf(first);
@@ -176,7 +179,7 @@ describe('daemon restarts', () => {
     expect(readFileSync(file('daemon.lock'), 'utf8')).toBe(String(next));
   });
 
-  it('shuts down gracefully on SIGTERM, flushing data and removing daemon.json and the lock', async () => {
+  posixIt('shuts down gracefully on SIGTERM, flushing data and removing daemon.json and the lock', async () => {
     await useHome();
     const client = await connect();
     const pid = await pidOf(client);
@@ -200,7 +203,7 @@ describe('daemon restarts', () => {
     expect(await pidOf(client)).not.toBe(pid);
   });
 
-  it('a client with autoStart false surfaces the dead daemon instead of starting one', async () => {
+  posixIt('a client with autoStart false surfaces the dead daemon instead of starting one', async () => {
     await useHome();
     await connect();
     const client = await connect({ autoStart: false });
