@@ -131,6 +131,45 @@ describe('clear', () => {
   });
 });
 
+describe('replace', () => {
+  it('makes the given elements the whole scene, winning over tombstones and newer stored versions', () => {
+    const s = makeStore();
+    s.ensure('c1');
+    s.apply('c1', [el('keep', { version: 9, x: 1 }), el('drop'), el('old', { version: 4 })], 'agent');
+    s.apply('c1', [el('old', { version: 5, isDeleted: true })], 'human');
+    clock += 5;
+
+    const res = s.replace('c1', [el('keep', { version: 2, x: 7 }), el('old', { version: 1, x: 3 }), el('new'), el('ghost', { isDeleted: true })], 'agent', [png('f1')]);
+    expect(res.rev).toBe(3);
+    expect(res.stale).toEqual([]);
+    expect(res.applied.sort()).toEqual(['drop', 'keep', 'new', 'old']);
+    const scene = new Map(s.snapshot('c1').elements.map((e) => [e.id, e]));
+    expect([...scene.keys()].sort()).toEqual(['keep', 'new', 'old']);
+    expect(scene.get('keep')).toMatchObject({ x: 7, version: 10, updated: clock });
+    expect(scene.get('old')).toMatchObject({ x: 3, version: 6, isDeleted: false });
+    expect(scene.get('new')).toMatchObject({ version: 2 });
+    const kinds = Object.fromEntries(s.changes('c1', 2).changes.map((r) => [r.id, r.kind]));
+    expect(kinds).toEqual({ drop: 'deleted', keep: 'updated', old: 'created', new: 'created' });
+    expect(s.pick('c1', ['drop'])[0]).toMatchObject({ isDeleted: true, version: 2 });
+  });
+
+  it('a deleted incoming element removes the live one with that id', () => {
+    const s = makeStore();
+    s.ensure('c1');
+    s.apply('c1', [el('a'), el('b')], 'agent');
+    s.replace('c1', [el('a', { isDeleted: true }), el('b')], 'agent');
+    expect(s.snapshot('c1').elements.map((e) => e.id)).toEqual(['b']);
+  });
+
+  it('validates before touching the board', () => {
+    const s = makeStore();
+    s.ensure('c1');
+    s.apply('c1', [el('a')], 'agent');
+    expect(() => s.replace('c1', [{ id: 'x' }], 'agent')).toThrow(ValidationError);
+    expect(s.snapshot('c1')).toMatchObject({ rev: 1, elements: [expect.objectContaining({ id: 'a' })] });
+  });
+});
+
 describe('notes', () => {
   it('trims, rejects empty/oversized text, assigns revs and caps the list', () => {
     const s = makeStore({ maxNotes: 3 });

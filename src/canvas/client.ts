@@ -13,6 +13,7 @@ import {
   type CanvasSummary,
   type ChangesResponse,
   type ExElement,
+  type SavedSummary,
   type ShowRequest,
   type ViewerRequestType,
 } from '../shared/protocol.js';
@@ -200,6 +201,24 @@ export class CanvasClient {
       if (err.status === 502) throw new CanvasError(`the viewer failed the ${type} request: ${err.code}`, 502, 'viewer_error');
       throw err;
     }
+  }
+
+  /** Saves a frozen copy of the canvas to the library, named after the board unless `name` is given. */
+  save(id: string, name?: string): Promise<SavedSummary> {
+    return this.call('POST', API.save(id), name === undefined ? {} : { name });
+  }
+
+  searchSaved(query = '', workspace = '', limit?: number): Promise<SavedSummary[]> {
+    return this.call('GET', API.saved(query, workspace, limit));
+  }
+
+  /** Replaces the canvas's scene with a copy of a saved board. */
+  loadSaved(id: string, savedId: string): Promise<ApplyResponse> {
+    return this.call('POST', API.load(id), { saved: savedId });
+  }
+
+  async deleteSaved(savedId: string): Promise<void> {
+    await this.call('DELETE', API.savedBoard(savedId));
   }
 
   async deleteCanvas(id: string): Promise<void> {

@@ -1,10 +1,10 @@
 import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, extname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { basename, dirname, extname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { CanvasClient, CanvasError } from '../canvas/client.js';
 import { describeChanges, describeScene } from '../shared/describe.js';
 import { ELEMENT_SPEC_FIELDS, buildElements, deleteElements, type ElementSpec } from '../shared/elements.js';
-import type { ChangesResponse, ExElement, MermaidResult, ScreenshotResult } from '../shared/protocol.js';
+import type { ChangesResponse, ExElement, MermaidResult, SavedSummary, ScreenshotResult } from '../shared/protocol.js';
 import { GUIDE } from './guide.js';
 import { openViewer } from './open.js';
 import { stripNulls, validate, type Schema } from './schema.js';
@@ -306,6 +306,21 @@ async function viewerRequest<T>(ctx: ChatContext, type: 'screenshot' | 'mermaid'
   return attempt();
 }
 
+/** A saved board by exact id or name (this workspace's first), or the only search hit. */
+async function findSaved(client: CanvasClient, wanted: string, workspace: string): Promise<SavedSummary> {
+  const hits = await client.searchSaved(wanted, workspace, 50);
+  const lower = wanted.toLowerCase();
+  const match = hits.find((s) => s.id === wanted) ?? hits.find((s) => s.name.toLowerCase() === lower) ?? (hits.length === 1 ? hits[0] : undefined);
+  if (match) return match;
+  if (!hits.length) throw new ToolError(`No saved board matches "${wanted}". canvas_search lists them.`);
+  throw new ToolError(`"${wanted}" matches several saved boards; pass one id: ${hits.slice(0, 10).map((s) => `"${s.name}" [${s.id}]`).join('; ')}.`);
+}
+
+const savedLine = (s: SavedSummary, workspace: string): string => {
+  const where = s.workspace === workspace ? 'this workspace' : s.workspace ? `from ${basename(s.workspace)}` : 'no workspace';
+  return `- "${s.name}" [${s.id}] ${s.elementCount} el, saved ${new Date(s.savedAt).toLocaleDateString('en-CA')}, ${where}${s.snippet ? `: "${s.snippet}"` : ''}`;
+};
+
 async function drawOnce(client: CanvasClient, ref: CanvasRef, specs: ElementSpec[]) {
   const snap = await client.snapshot(ref.id);
   const built = buildElements(specs, snap.elements);
@@ -320,7 +335,8 @@ export const TOOLS: Tool[] = [
     inputSchema: obj({
       title: str("Name this chat's board after the topic, e.g. \"How MCP works\""),
       board: str("Switch to another board of this workspace by id or title; \"own\" returns to this chat's board"),
-      fresh: bool('Clear the board first'),
+      saved: str("Load a copy of a saved board (id or name, see canvas_search) into this chat's board"),
+      fresh: bool('Clear the board first (needed to load saved over a non-empty board)'),
       open: bool('Show it to the human if nobody is watching (default true)'),
     }),
     async run(args, ctx) {
@@ -329,22 +345,33 @@ export const TOOLS: Tool[] = [
       const own = ctx.session.ownBoard(ctx.chat);
       const boards = (await client.list()).filter((b) => b.workspace === workspace || b.id === own.id);
       const wanted = (args.board as string | undefined)?.trim();
+      const savedWanted = (args.saved as string | undefined)?.trim();
+      if (wanted && savedWanted) throw new ToolError('Pass board or saved, not both.');
       let target: CanvasRef = ctx.session.board(ctx.chat);
       if (wanted) {
         const match = wanted.toLowerCase() === 'own' ? own : boards.find((b) => b.id === wanted) ?? boards.find((b) => b.title.toLowerCase() === wanted.toLowerCase());
         if (!match) throw new ToolError(`No board "${wanted}" in this workspace. Boards: ${boards.map((b) => `${b.title} [${b.id}]`).join('; ') || 'none yet'}.`);
         target = { id: match.id, title: '' };
       }
-      const titled = args.title !== undefined ? { ...target, title: String(args.title).trim() } : target;
-      const { ref } = await ctx.canvas(titled);
+      const loaded = savedWanted ? await findSaved(client, savedWanted, workspace) : undefined;
+      if (loaded) {
+        target = own;
+        await ctx.canvas(own);
+        const count = (await client.snapshot(own.id)).elements.length;
+        if (count && !args.fresh) throw new ToolError(`This chat's board has ${plural(count, 'element')}; loading "${loaded.name}" replaces them. Pass fresh:true to replace them (canvas_save keeps a copy first).`);
+      }
+      const title = args.title !== undefined ? String(args.title).trim() : loaded?.name;
+      const { ref } = await ctx.canvas(title !== undefined ? { ...target, title } : target);
       ctx.session.setBoard(ctx.chat, ref);
-      if (args.fresh) await client.clear(ref.id);
+      if (loaded) await client.loadSaved(ref.id, loaded.id);
+      else if (args.fresh) await client.clear(ref.id);
       const snap = await client.snapshot(ref.id);
       const shown = args.open === false ? '' : await ctx.reveal(client, ref, snap.viewers);
       const others = boards.filter((b) => b.id !== ref.id).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 10);
       const mine = ref.id === own.id;
       return text(
         `${mine ? "This chat's board" : 'Board from another chat'}: ${boardName(ref)} [${ref.id}]. ${snap.viewers ? 'The human is watching it.' : shown}`,
+        loaded && `Loaded a copy of saved board "${loaded.name}" [${loaded.id}]; the saved copy stays unchanged.`,
         snap.elements.length ? describeScene(snap.elements, { maxElements: 12 }) : 'The board is empty.',
         others.length > 0 && `Other boards in this workspace (open one with board): ${others.map((b) => `${b.title === b.id ? '(untitled)' : b.title} [${b.id}, ${b.elementCount} el]`).join('; ')}`,
         !mine && 'Drawing now changes that board; canvas_open {board:"own"} switches back to this chat\'s board.',
@@ -472,6 +499,36 @@ export const TOOLS: Tool[] = [
       const doc = { type: 'excalidraw', version: 2, source: 'whiteboard-mcp', elements: snap.elements, appState: { viewBackgroundColor: '#ffffff' }, files: snap.files };
       writeFileSync(target, `${JSON.stringify(doc, null, 2)}\n`);
       return `Wrote ${target} (${plural(snap.elements.length, 'element')}).`;
+    },
+  },
+  {
+    name: 'canvas_save',
+    description: "Save a frozen copy of this board to the user's library so any later chat can find it with canvas_search. The same name again overwrites it.",
+    inputSchema: obj({ name: str('Name to save under (default: the board title)') }),
+    async run(args, ctx) {
+      const { client, ref } = await ctx.canvas();
+      const name = (args.name as string | undefined)?.trim() || ref.title;
+      if (!name) throw new ToolError('This board has no title yet: pass name.');
+      if (!(await client.snapshot(ref.id)).elements.length) throw new ToolError('The board is empty; draw something before saving it.');
+      const saved = await client.save(ref.id, name);
+      return `Saved ${plural(saved.elementCount, 'element')} as "${saved.name}" [${saved.id}]. Later chats find it with canvas_search and load a copy with canvas_open {saved:"${saved.id}"}.`;
+    },
+  },
+  {
+    name: 'canvas_search',
+    description: 'Search saved boards from every workspace (this one first) by name or text on them. canvas_open {saved} loads one into this chat.',
+    inputSchema: obj({ query: str('Words that must all match; omit to list the latest') }),
+    quiet: true,
+    async run(args, ctx) {
+      const client = await ctx.connect();
+      const query = ((args.query as string | undefined) ?? '').trim();
+      const hits = await client.searchSaved(query, ctx.session.workspace);
+      if (!hits.length) return query ? `No saved boards match "${query}".` : 'No saved boards yet; canvas_save saves one.';
+      return text(
+        `${plural(hits.length, 'saved board')}${query ? ` matching "${query}"` : ''}, this workspace first:`,
+        ...hits.map((s) => savedLine(s, ctx.session.workspace)),
+        'canvas_open {saved:"<id>"} loads a copy into this chat\'s board.',
+      );
     },
   },
   {

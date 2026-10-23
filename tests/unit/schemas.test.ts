@@ -3,7 +3,7 @@ import { validate, stripNulls, type Schema } from '../../src/mcp/schema.js';
 import { TOOLS, toolList } from '../../src/mcp/tools.js';
 import { ELEMENT_SPEC_FIELDS } from '../../src/shared/elements.js';
 
-const TOOL_NAMES = ['canvas_open', 'canvas_read', 'canvas_draw', 'canvas_delete', 'canvas_focus', 'canvas_screenshot', 'canvas_mermaid', 'canvas_export', 'canvas_guide'];
+const TOOL_NAMES = ['canvas_open', 'canvas_read', 'canvas_draw', 'canvas_delete', 'canvas_focus', 'canvas_screenshot', 'canvas_mermaid', 'canvas_export', 'canvas_save', 'canvas_search', 'canvas_guide'];
 const ALLOWED_KEYS = new Set(['type', 'description', 'properties', 'required', 'items', 'enum', 'maxItems', 'additionalProperties']);
 const TYPES = new Set(['object', 'array', 'string', 'number', 'integer', 'boolean']);
 
@@ -28,7 +28,7 @@ function portabilityProblems(schema: unknown, path: string): string[] {
 }
 
 describe('tool schemas', () => {
-  it('lists exactly the nine tools', () => {
+  it('lists exactly the eleven tools', () => {
     expect(TOOLS.map((t) => t.name)).toEqual(TOOL_NAMES);
   });
 
@@ -87,6 +87,8 @@ describe('tool schemas', () => {
       canvas_screenshot: [],
       canvas_mermaid: ['definition'],
       canvas_export: ['path'],
+      canvas_save: [],
+      canvas_search: [],
       canvas_guide: [],
     });
   });

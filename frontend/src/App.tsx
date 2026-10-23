@@ -1,13 +1,18 @@
 import { Excalidraw, Footer, MainMenu, WelcomeScreen, useDevice } from '@excalidraw/excalidraw';
 import type { ExcalidrawImperativeAPI, UIOptions } from '@excalidraw/excalidraw/types';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { readConfig, storage, type ThemePreference } from './config';
 import type { LinkStatus } from './connection';
 import { createFollower } from './follow';
+import { Icon } from './Icon';
 import { startLive, type Live } from './live';
+import { SAVE_ICON, SaveForm } from './SaveForm';
 import { StatusPill } from './StatusPill';
 
 const FOLLOW_KEY = 'whiteboard-mcp:follow';
+const SAVE_SHORTCUT = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘S' : 'Ctrl+S';
+const SAVED_TOAST_MS = 4000;
+const isSaveKey = (e: KeyboardEvent) => (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 's';
 const UI_OPTIONS: Partial<UIOptions> = {
   canvasActions: { loadScene: false, saveToActiveFile: false, toggleTheme: false, saveAsImage: true },
 };
@@ -33,6 +38,9 @@ export function App() {
   const [status, setStatus] = useState<LinkStatus>('connecting');
   const [viewers, setViewers] = useState(0);
   const [follow, setFollow] = useState(() => storage.get(FOLLOW_KEY) !== '0');
+  const [title, setTitle] = useState('');
+  const [saving, setSaving] = useState(false);
+  const closeSave = useCallback(() => setSaving(false), []);
   const live = useRef<Live | null>(null);
   const themeRef = useRef(theme);
   const followRef = useRef(follow);
@@ -51,6 +59,7 @@ export function App() {
       status: setStatus,
       viewers: setViewers,
       agentDrew: follower.push,
+      title: (t) => setTitle(t === config.canvasId ? '' : t),
       dark: () => themeRef.current === 'dark',
     });
     live.current = session;
@@ -61,6 +70,31 @@ export function App() {
       if (window.__excalidrawAPI === api) delete window.__excalidrawAPI;
     };
   }, [api, config]);
+
+  // Excalidraw's own ⌘/Ctrl+S needs a file opened from disk; here it saves to the library instead.
+  useEffect(() => {
+    if (!config.canvasId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!isSaveKey(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setSaving(true);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [config]);
+
+  const save = async (name: string) => {
+    try {
+      if (!live.current) throw new Error('offline');
+      const saved = await live.current.save(name);
+      api?.setToast({ message: `Saved "${saved.name}". Any chat can find it with canvas_search.`, duration: SAVED_TOAST_MS });
+      setSaving(false);
+    } catch (err) {
+      api?.setToast({ message: `Not saved: ${err instanceof Error ? err.message : String(err)}`, closable: true });
+      throw err;
+    }
+  };
 
   const toggleFollow = () => {
     setFollow((on) => {
@@ -87,6 +121,11 @@ export function App() {
     <div className="xl-root">
       <Excalidraw excalidrawAPI={setApi} theme={theme} name={config.canvasId || 'canvas'} UIOptions={UI_OPTIONS} aiEnabled={false}>
         <MainMenu>
+          {config.canvasId && (
+            <MainMenu.Item icon={<Icon d={SAVE_ICON} size={16} />} shortcut={SAVE_SHORTCUT} onSelect={() => setSaving(true)} data-testid="save-to-library">
+              Save to library
+            </MainMenu.Item>
+          )}
           <MainMenu.DefaultItems.SaveAsImage />
           <MainMenu.DefaultItems.Export />
           <MainMenu.DefaultItems.SearchMenu />
@@ -100,7 +139,10 @@ export function App() {
             <WelcomeScreen.Center.Heading>Your agent will draw here — you can draw too.</WelcomeScreen.Center.Heading>
           </WelcomeScreen.Center>
         </WelcomeScreen>
-        <Chrome>{pill}</Chrome>
+        <Chrome>
+          {pill}
+          {saving && <SaveForm initialName={title} onSave={save} onClose={closeSave} />}
+        </Chrome>
       </Excalidraw>
     </div>
   );
