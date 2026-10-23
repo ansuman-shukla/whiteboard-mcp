@@ -1,11 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="560" viewBox="0 0 1600 560" role="img" aria-label="whiteboard-mcp: a live whiteboard your coding agent draws on, and you draw back. Works with Claude Code, Codex, Cursor, Gemini CLI, VS Code and any MCP client.">
-<title>whiteboard-mcp: a live whiteboard your coding agent draws on, and you draw back. Works with Claude Code, Codex, Cursor, Gemini CLI, VS Code and any MCP client.</title>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="260" viewBox="0 0 1600 260" role="img" aria-label="whiteboard-mcp: a live whiteboard your coding agent draws on. You draw back.">
+<title>whiteboard-mcp: a live whiteboard your coding agent draws on. You draw back.</title>
 <style>
 .serif{font-family:'New York','Iowan Old Style',ui-serif,Georgia,serif}
 .sans{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',Helvetica,Arial,sans-serif}
 .mono{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace}
 </style>
-<g transform="translate(40 64) scale(0.8666666666666667)">
+<g transform="translate(40 70) scale(1)">
   <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4dabf7"/><stop offset="1" stop-color="#9775fa"/></linearGradient></defs>
   <rect width="120" height="120" rx="28" fill="url(#lg)"/>
   <rect x="18" y="30" width="34" height="24" rx="6" fill="none" stroke="#fff" stroke-width="5"/>
@@ -14,35 +14,8 @@
   <path d="M58 70l8 8-8 8" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
   <path d="M74 26c6-4 14-4 22 2" fill="none" stroke="#ffa94d" stroke-width="5" stroke-linecap="round"/>
 </g>
-<text x="170" y="136" class="serif" font-size="62" font-weight="700" fill="#efeee6" text-anchor="start">whiteboard-mcp</text>
-<text x="40" y="252" class="sans" font-size="56" font-weight="600" fill="#efeee6" text-anchor="start">A live whiteboard your</text>
-<text x="40" y="322" class="sans" font-size="56" font-weight="600" fill="#efeee6" text-anchor="start">coding agent draws on.</text>
-<text x="40" y="392" class="sans" font-size="56" font-weight="600" fill="#85857f" text-anchor="start">You draw back.</text>
-<rect x="40" y="430" width="290" height="74" rx="37" fill="#ffa94d"/><rect x="40" y="430" width="290" height="70" rx="35" fill="#ffb86b"/>
-<text x="185" y="476" class="sans" font-size="29" font-weight="700" fill="#1c1c1a" text-anchor="middle">Get started  →</text>
-<text x="360" y="464" class="sans" font-size="23" font-weight="400" fill="#85857f" text-anchor="start">Claude Code · Codex · Cursor</text>
-<text x="360" y="496" class="sans" font-size="23" font-weight="400" fill="#85857f" text-anchor="start">Gemini CLI · VS Code · any MCP client</text>
-<g>
-  <rect x="860" y="30" width="700" height="500" rx="28" fill="#2a2a2a" stroke="#363636" stroke-width="2"/>
-  <path d="M860 82H1560" stroke="#363636" stroke-width="2"/>
-  <circle cx="890" cy="56" r="7" fill="#363636"/><circle cx="912" cy="56" r="7" fill="#363636"/><circle cx="934" cy="56" r="7" fill="#363636"/>
-  <path d="M1070 82V530" stroke="#363636" stroke-width="2"/>
-  <rect x="930" y="114" width="120" height="44" rx="14" fill="#4dabf7"/>
-  <rect x="884" y="186" width="150" height="12" rx="6" fill="#363636"/><rect x="884" y="208" width="110" height="12" rx="6" fill="#363636"/>
-  <rect x="884" y="240" width="132" height="30" rx="8" fill="none" stroke="#b07ce8" stroke-width="2"/><rect x="896" y="249" width="90" height="12" rx="6" fill="#b07ce8"/>
-  <rect x="884" y="294" width="160" height="12" rx="6" fill="#363636"/><rect x="884" y="316" width="120" height="12" rx="6" fill="#363636"/>
-  <rect x="930" y="354" width="120" height="44" rx="14" fill="#4dabf7"/>
-  <rect x="884" y="430" width="132" height="30" rx="8" fill="none" stroke="#b07ce8" stroke-width="2"/><rect x="896" y="439" width="90" height="12" rx="6" fill="#b07ce8"/>
-  <rect x="876" y="474" width="178" height="40" rx="12" fill="none" stroke="#363636" stroke-width="2"/>
-  <rect x="1110" y="130" width="120" height="62" rx="12" fill="#a5d8ff" stroke="#1e1e1e" stroke-width="2.5"/><text x="1170" y="169" class="sans" font-size="22" font-weight="600" fill="#1e1e1e" text-anchor="middle">API</text>
-  <rect x="1340" y="130" width="150" height="62" rx="12" fill="#a5d8ff" stroke="#1e1e1e" stroke-width="2.5"/><text x="1415" y="169" class="sans" font-size="22" font-weight="600" fill="#1e1e1e" text-anchor="middle">Orders</text>
-  <rect x="1110" y="310" width="120" height="62" rx="12" fill="#96f2d7" stroke="#1e1e1e" stroke-width="2.5"/><text x="1170" y="349" class="sans" font-size="22" font-weight="600" fill="#1e1e1e" text-anchor="middle">DB</text>
-  <rect x="1340" y="310" width="150" height="62" rx="12" fill="#ffd8a8" stroke="#1e1e1e" stroke-width="2.5"/><text x="1415" y="349" class="sans" font-size="22" font-weight="600" fill="#1e1e1e" text-anchor="middle">Queue</text>
-  <path d="M1232 161H1336M1324 153l12 8-12 8" fill="none" stroke="#efeee6" stroke-width="2.5" stroke-linecap="round"/>
-  <path d="M1370 194L1200 306M1202 292l-2 14 14-2" fill="none" stroke="#efeee6" stroke-width="2.5" stroke-linecap="round"/>
-  <path d="M1415 194V306M1407 296l8 10 8-10" fill="none" stroke="#efeee6" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="8 7"/>
-  <path d="M1520 334c4 -46 -60 -66 -128 -60c-70 6 -110 36 -100 74c10 40 80 54 150 46c60 -8 92 -34 76 -66" fill="none" stroke="#e03131" stroke-width="3.5" stroke-linecap="round"/>
-  <g transform="rotate(-3 1360 450)"><rect x="1260" y="418" width="236" height="62" rx="6" fill="#ffec99"/><text x="1378" y="457" class="sans" font-size="22" font-weight="600" fill="#5c4a00" text-anchor="middle">what if it fails?</text></g>
-  <path transform="translate(1510 380)" d="M0 0l22 14-10 2 6 11-5 3-6-11-7 7z" fill="#efeee6" stroke="#2a2a2a" stroke-width="2" stroke-linejoin="round"/>
-</g>
+<text x="196" y="154" class="serif" font-size="76" font-weight="700" fill="#efeee6" text-anchor="start">whiteboard-mcp</text>
+<text x="1560" y="92" class="sans" font-size="46" font-weight="600" fill="#efeee6" text-anchor="end">A live whiteboard your</text>
+<text x="1560" y="150" class="sans" font-size="46" font-weight="600" fill="#efeee6" text-anchor="end">coding agent draws on.</text>
+<text x="1560" y="208" class="sans" font-size="46" font-weight="600" fill="#85857f" text-anchor="end">You draw back.</text>
 </svg>
