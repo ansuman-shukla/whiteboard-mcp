@@ -34,7 +34,7 @@ Then **open a new terminal** (or restart agents already running): only processes
 
 ```jsonc
 // .vscode/mcp.json, or "MCP: Open User Configuration"
-{ "servers": { "whiteboard": { "type": "stdio", "command": "node", "args": ["/abs/path/dist/cli.js"] } } }
+{ "servers": { "whiteboard": { "type": "stdio", "command": "npx", "args": ["-y", "@ansuman-shukla/whiteboard-mcp"] } } }
 ```
 
 **Whiteboard: Open Board** (command palette) lists the boards of the window's folders.
