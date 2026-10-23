@@ -358,6 +358,58 @@ describe('validation', () => {
   });
 });
 
+describe('search', () => {
+  const text = (id: string, t: string, over: Partial<ExElement> = {}) => el(id, { type: 'text', text: t, ...over });
+  function seed(s: CanvasStore) {
+    s.ensure('auth-1', { title: 'Auth flow', workspace: '/work/other' });
+    s.apply('auth-1', [text('t', 'Login service issues JWT')], 'agent');
+    clock += 1;
+    s.ensure('cache-1', { title: 'Cache layer', workspace: '/work/app' });
+    s.apply('cache-1', [text('t', 'Redis in front of\nthe   auth DB'), text('gone', 'stripe', { isDeleted: true })], 'agent');
+    clock += 1;
+    s.ensure('bill-1', { title: 'Billing', workspace: '/work/app' });
+    s.apply('bill-1', [text('t', 'Stripe webhooks')], 'agent');
+    s.ensure('empty-1', { title: 'Auth empty', workspace: '/work/app' });
+  }
+
+  it('lists non-empty boards, this workspace first, newest first, when the query is empty', () => {
+    const s = makeStore();
+    seed(s);
+    expect(s.search('', '/work/other').map((r) => r.id)).toEqual(['auth-1', 'bill-1', 'cache-1']);
+    expect(s.search('').map((r) => r.id)).toEqual(['bill-1', 'cache-1', 'auth-1']);
+  });
+
+  it('matches every word across title, folder, id and live text, ranking this workspace then title hits', () => {
+    const s = makeStore();
+    seed(s);
+    expect(s.search('auth', '/work/app').map((r) => r.id)).toEqual(['cache-1', 'auth-1']);
+    expect(s.search('auth').map((r) => r.id)).toEqual(['auth-1', 'cache-1']);
+    expect(s.search('redis AUTH').map((r) => r.id)).toEqual(['cache-1']);
+    expect(s.search('other jwt').map((r) => r.id)).toEqual(['auth-1']);
+    expect(s.search('bill-1').map((r) => r.id)).toEqual(['bill-1']);
+    expect(s.search('stripe').map((r) => r.id)).toEqual(['bill-1']);
+    expect(s.search('redis stripe')).toEqual([]);
+  });
+
+  it('finds boards that are only on disk, with the matching text as a snippet', () => {
+    const s = makeStore();
+    seed(s);
+    s.flush();
+    const reloaded = makeStore();
+    expect(reloaded.loadedCount).toBe(0);
+    expect(reloaded.search('redis')).toEqual([expect.objectContaining({ id: 'cache-1', title: 'Cache layer', workspace: '/work/app', snippet: 'Redis in front of the auth DB' })]);
+    expect(reloaded.loadedCount).toBe(0);
+    expect(reloaded.search('cache')[0]).not.toHaveProperty('snippet');
+  });
+
+  it('caps results by limit', () => {
+    const s = makeStore();
+    seed(s);
+    expect(s.search('', undefined, 1).map((r) => r.id)).toEqual(['bill-1']);
+    expect(s.search('', undefined, 0)).toHaveLength(1);
+  });
+});
+
 describe('board metadata', () => {
   it('sets workspace and chat once, renames by title, and persists all three', () => {
     const s = makeStore();

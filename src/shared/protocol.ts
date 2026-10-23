@@ -52,6 +52,11 @@ export interface CanvasSummary {
   chat?: string;
 }
 
+export interface CanvasSearchHit extends CanvasSummary {
+  /** A line of the board's text that matches the search query. */
+  snippet?: string;
+}
+
 export interface CanvasSnapshot {
   id: string;
   title: string;
@@ -198,6 +203,8 @@ export const API = {
   /** Saved boards matching every word of `q` (all when empty), boards of `workspace` first. */
   saved: (q = '', workspace = '', limit?: number) => `/api/saved?${new URLSearchParams({ q, workspace, ...(limit ? { limit: String(limit) } : {}) })}`,
   savedBoard: (id: string) => `/api/saved/${encodeURIComponent(id)}`,
+  /** Live boards of every folder matching every word of `q` (all non-empty when empty), boards of `workspace` first. */
+  search: (q = '', workspace = '', limit?: number) => `/api/search?${new URLSearchParams({ q, workspace, ...(limit ? { limit: String(limit) } : {}) })}`,
   hostWs: '/ws/host',
   viewer: (id: string) => `/c/${encodeURIComponent(id)}`,
   ws: '/ws',

@@ -9,6 +9,7 @@ import {
   type BinaryFile,
   type CanvasMeta,
   type CanvasNote,
+  type CanvasSearchHit,
   type CanvasSnapshot,
   type CanvasSummary,
   type ChangesResponse,
@@ -210,6 +211,11 @@ export class CanvasClient {
 
   searchSaved(query = '', workspace = '', limit?: number): Promise<SavedSummary[]> {
     return this.call('GET', API.saved(query, workspace, limit));
+  }
+
+  /** Live boards of every folder matching the query, this workspace's first. */
+  searchBoards(query = '', workspace = '', limit?: number): Promise<CanvasSearchHit[]> {
+    return this.call('GET', API.search(query, workspace, limit));
   }
 
   /** Replaces the canvas's scene with a copy of a saved board. */

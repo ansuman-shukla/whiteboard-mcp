@@ -315,6 +315,72 @@ describe('chat scope', () => {
   });
 });
 
+describe('boards from other folders', () => {
+  // Codex desktop starts every task in a new folder, e.g. ~/Documents/Codex/<date>/<task-slug>.
+  const task = (slug: string) => {
+    const dir = join(root, 'Codex', '2026-10-23', slug);
+    mkdirSync(dir, { recursive: true });
+    return connect({ cwd: dir });
+  };
+
+  it('a new task opens a board an earlier task made in its own folder, by title, and draws on it', async () => {
+    const first = await task('ca');
+    const firstBoard = boardId((await call(first, 'canvas_open', { title: 'How Codex turns a prompt into work' })).text);
+    await call(first, 'canvas_draw', { elements: [{ id: 'loop', type: 'rectangle', x: 0, y: 0, label: 'Agent loop' }] });
+
+    const later = await task('open-the-how-codex-turns-a');
+    const opened = await call(later, 'canvas_open', { board: 'how codex turns a prompt into work' });
+    expect(opened.result.isError).toBeFalsy();
+    expect(opened.text).toContain(`Board from another chat (from ca): "How Codex turns a prompt into work" [${firstBoard}]`);
+    expect(opened.text).toContain('[Agent loop]');
+    expect(opened.text).not.toContain('Other boards in this workspace');
+    await call(later, 'canvas_draw', { elements: [{ id: 'tools', type: 'rectangle', x: 300, y: 0, label: 'Tools' }] });
+    expect((await call(first, 'canvas_read')).text).toContain('[Tools]');
+    expect((await call(later, 'canvas_open', { board: firstBoard })).text).toContain(`[${firstBoard}]`);
+  });
+
+  it('for loose wording it opens nothing and lists the closest boards and saved copies to pick by id', async () => {
+    const maker = await task('make-a-board');
+    const madeBoard = boardId((await call(maker, 'canvas_open', { title: 'Rate limiter design' })).text);
+    await call(maker, 'canvas_draw', { elements: [{ id: 'bucket', type: 'rectangle', x: 0, y: 0, label: 'Token bucket' }] });
+    const savedCopy = /\[([a-z0-9-]+)\]/.exec((await call(maker, 'canvas_save', { name: 'Limiter v1' })).text)![1]!;
+
+    const later = await task('rate-limiter-follow-up');
+    await call(later, 'canvas_open');
+    const miss = await call(later, 'canvas_open', { board: 'the rate limiter' });
+    expect(miss.result.isError).toBe(true);
+    expect(miss.text).toMatch(new RegExp(`^No board called "the rate limiter" in any folder\\. Closest, open one by id: "Rate limiter design" \\[${madeBoard}\\] from make-a-board;`));
+    expect(miss.text).toContain(`saved copy "Limiter v1" (load with saved:"${savedCopy}")`);
+    expect((await call(later, 'canvas_read')).text).toMatch(/^Board this chat's board \(untitled/);
+  });
+
+  it('refuses to guess between same-titled boards of other folders, but prefers its own folder', async () => {
+    for (const slug of ['alpha', 'beta']) {
+      const chat = await task(slug);
+      await call(chat, 'canvas_open', { title: 'How login works' });
+      await call(chat, 'canvas_draw', { elements: [{ id: 'x', type: 'rectangle', x: 0, y: 0, label: `${slug} login` }] });
+    }
+    const outsider = await task('gamma');
+    const several = await call(outsider, 'canvas_open', { board: 'How login works' });
+    expect(several.result.isError).toBe(true);
+    expect(several.text).toMatch(/^Several boards in other folders are called "How login works"; pass one id: \[[a-z0-9-]+\] from (alpha|beta); \[[a-z0-9-]+\] from (alpha|beta)\./);
+    const beta = await task('beta');
+    expect((await call(beta, 'canvas_open', { board: 'How login works' })).text).toContain('[beta login]');
+  });
+
+  it('canvas_search finds live boards of other folders by their text, next to saved copies', async () => {
+    const maker = await task('search-source');
+    const made = boardId((await call(maker, 'canvas_open', { title: 'Queue workers' })).text);
+    await call(maker, 'canvas_draw', { elements: [{ id: 'k', type: 'text', x: 0, y: 0, text: 'Kafka consumer group' }] });
+    await call(maker, 'canvas_save', { name: 'Workers snapshot' });
+    const later = await task('search-later');
+    const found = await call(later, 'canvas_search', { query: 'kafka' });
+    expect(found.text).toMatch(new RegExp(`^1 live board matching "kafka", this workspace first \\(canvas_open \\{board:"<id>"\\} opens one\\):\\n- "Queue workers" \\[${made}\\] 1 el, changed \\d{4}-\\d\\d-\\d\\d, from search-source: "Kafka consumer group"\\n`));
+    expect(found.text).toMatch(/\n1 saved board matching "kafka" \(canvas_open \{saved:"<id>"\} loads a copy into this chat's board\):\n- "Workers snapshot" \[/);
+    expect((await call(later, 'canvas_search', { query: 'zebra unicorn' })).text).toBe('No boards or saved copies match "zebra unicorn".');
+  });
+});
+
 describe('saved boards', () => {
   const savedId = (text: string): string => /as "[^"]+" \[([a-z0-9-]+)\]/.exec(text)![1]!;
 
@@ -333,9 +399,10 @@ describe('saved boards', () => {
     mkdirSync(elsewhere, { recursive: true });
     const later = await connect({ cwd: elsewhere });
     const found = await call(later, 'canvas_search', { query: 'stripe' });
+    expect(found.text).toMatch(/^1 saved board matching "stripe"/);
     expect(found.text).toContain(`- "Payments flow" [${id}] 2 el, saved `);
     expect(found.text).toContain('from Main Workspace: "Stripe webhook"');
-    expect((await call(later, 'canvas_search', { query: 'nothing here' })).text).toBe('No saved boards match "nothing here".');
+    expect((await call(later, 'canvas_search', { query: 'nothing here' })).text).toBe('No boards or saved copies match "nothing here".');
 
     await call(later, 'canvas_draw', { elements: [{ id: 'mine', type: 'rectangle', x: 0, y: 0, label: 'Mine' }] });
     const refused = await call(later, 'canvas_open', { saved: id });
@@ -371,7 +438,7 @@ describe('saved boards', () => {
     expect((await call(chat, 'canvas_open', { saved: 'zzz-none' })).text).toBe('No saved board matches "zzz-none". canvas_search lists them.');
     expect((await call(chat, 'canvas_open', { saved: 'queue one', board: 'own' })).text).toBe('Pass board or saved, not both.');
     const latest = await call(chat, 'canvas_search');
-    expect(latest.text).toMatch(/^\d+ saved boards, this workspace first:\n- "Queue two" \[[a-z0-9-]+\] 2 el, saved \d{4}-\d\d-\d\d, this workspace\n/);
+    expect(latest.text).toMatch(/\n\d+ saved boards \(canvas_open \{saved:"<id>"\} loads a copy into this chat's board\):\n- "Queue two" \[[a-z0-9-]+\] 2 el, saved \d{4}-\d\d-\d\d, this workspace\n/);
   });
 
   it('loads into the chat\'s own board even while it is looking at another chat\'s board', async () => {

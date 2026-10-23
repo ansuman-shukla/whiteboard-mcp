@@ -24,8 +24,8 @@ function freePort(): Promise<number> {
   });
 }
 
-function run(args: string[], input?: string): { code: number | null; stdout: string; stderr: string } {
-  const r = spawnSync(process.execPath, [cli, ...args], { cwd: workspace, env, input, encoding: 'utf8', timeout: 15000 });
+function run(args: string[], input?: string, cwd = workspace): { code: number | null; stdout: string; stderr: string } {
+  const r = spawnSync(process.execPath, [cli, ...args], { cwd, env, input, encoding: 'utf8', timeout: 15000 });
   return { code: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 
@@ -112,7 +112,12 @@ describe('cli', () => {
     expect(run(['url', 'auth flow']).stdout).toBe(own.stdout);
     const missing = run(['url', 'nope']);
     expect(missing.code).toBe(1);
-    expect(missing.stderr).toContain('no board "nope"');
+    expect(missing.stderr).toContain('no board "nope" in any folder');
+    const elsewhere = join(root, 'another-task');
+    mkdirSync(elsewhere, { recursive: true });
+    const fromElsewhere = run(['url', 'Auth flow'], undefined, elsewhere);
+    expect(fromElsewhere.code, fromElsewhere.stderr).toBe(0);
+    expect(fromElsewhere.stdout).toBe(own.stdout);
   });
 
   it('prints its version', () => {

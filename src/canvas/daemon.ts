@@ -20,7 +20,8 @@ import {
   type ServerMessage,
   type ViewerRequestType,
 } from '../shared/protocol.js';
-import { MAX_SEARCH_LIMIT, SavedStore } from './saved.js';
+import { SavedStore } from './saved.js';
+import { MAX_SEARCH_LIMIT } from './search.js';
 import { CanvasStore, NotFoundError, ValidationError, validateElements } from './store.js';
 
 export interface DaemonOptions {
@@ -269,16 +270,19 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
     return saved.save({ name: name ?? snap.title, source: canvasId, workspace: store.summaryOf(canvasId).workspace, elements: snap.elements, files: snap.files });
   }
 
+  /** The `q`, `workspace` and `limit` parameters of a search request. */
+  function searchParams(req: IncomingMessage, url: URL): [query: string, workspace: string | undefined, limit: number | undefined] {
+    if ((req.method ?? 'GET') !== 'GET') throw new HttpError(405, 'method_not_allowed');
+    const rawLimit = url.searchParams.get('limit');
+    const limit = rawLimit ? Number(rawLimit) : undefined;
+    if (limit !== undefined && !(Number.isInteger(limit) && limit > 0 && limit <= MAX_SEARCH_LIMIT)) throw new HttpError(400, `limit must be an integer from 1 to ${MAX_SEARCH_LIMIT}`);
+    return [url.searchParams.get('q') ?? '', url.searchParams.get('workspace') || undefined, limit];
+  }
+
   async function handleSaved(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
     const parts = url.pathname.split('/').slice(3);
     const method = req.method ?? 'GET';
-    if (parts.length === 0) {
-      if (method !== 'GET') throw new HttpError(405, 'method_not_allowed');
-      const rawLimit = url.searchParams.get('limit');
-      const limit = rawLimit ? Number(rawLimit) : undefined;
-      if (limit !== undefined && !(Number.isInteger(limit) && limit > 0 && limit <= MAX_SEARCH_LIMIT)) throw new HttpError(400, `limit must be an integer from 1 to ${MAX_SEARCH_LIMIT}`);
-      return sendJson(res, 200, saved.search(url.searchParams.get('q') ?? '', url.searchParams.get('workspace') || undefined, limit));
-    }
+    if (parts.length === 0) return sendJson(res, 200, saved.search(...searchParams(req, url)));
     if (parts.length !== 1 || !parts[0]) throw new HttpError(404, 'not_found');
     let id: string;
     try {
@@ -492,6 +496,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
     if (url.pathname === '/api' || url.pathname.startsWith('/api/')) {
       if (!authorized(req, url)) return sendJson(res, 401, { error: 'unauthorized' });
       if (url.pathname === '/api/saved' || url.pathname.startsWith('/api/saved/')) return handleSaved(req, res, url);
+      if (url.pathname === '/api/search') return sendJson(res, 200, store.search(...searchParams(req, url)));
       if (url.pathname !== '/api/canvases' && !url.pathname.startsWith('/api/canvases/')) throw new HttpError(404, 'not_found');
       return handleApi(req, res, url);
     }
