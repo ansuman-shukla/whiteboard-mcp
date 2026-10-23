@@ -1,141 +1,79 @@
-# whiteboard-mcp
+<a href="#quick-start">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/media/readme/hero-dark.svg">
+    <img src="docs/media/readme/hero-light.svg" width="100%" alt="whiteboard-mcp: a live whiteboard your coding agent draws on, and you draw back. Works with Claude Code, Codex, Cursor, Gemini CLI, VS Code and any MCP client.">
+  </picture>
+</a>
 
-**A live whiteboard your coding agent draws on while it explains things to you.**
+<br>
 
-Ask "how does login work here?" and instead of a wall of text, your agent sketches it on a whiteboard next to the chat, step by step, pointing at the parts it's talking about. You can draw back or leave a note, and the agent sees it on its next turn.
+<img src="docs/media/dots-and-boxes.gif" width="100%" alt="Playing Dots and Boxes with a coding agent: the human draws a line on the board, the agent sees the move and plays back, until red wins 12 to 4">
 
-![The agent draws a login flow step by step, highlights the parts it explains, then answers a note left by the human](docs/media/demo.gif)
+<p align="center"><sub>Playing Dots and Boxes with an agent: you draw a line, it sees your move and plays back.</sub></p>
 
-Works with Claude Code, Codex, Cursor, Gemini CLI, OpenCode, Devin, VS Code, and any other MCP client. Agents without MCP can use the plain CLI.
+<br>
 
-## What it can do
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/media/readme/features-dark.svg">
+  <img src="docs/media/readme/features-light.svg" width="100%" alt="Why whiteboard-mcp: draws step by step, sees what you draw, right beside the chat, remembers boards, local and private, tiny (one runtime dependency, about 7 KB of tool schema per turn).">
+</picture>
 
-### Explain step by step
+<br><br>
 
-The agent opens a board for the topic, draws one idea at a time (components, then the flow between them, then notes) and highlights what it's talking about. Arrows stay attached to boxes, so the agent can move and restyle things without redrawing. It can also take a screenshot of the board to check its own layout.
+**Understand an architecture.** *"How does a typical checkout backend work? Draw it on the whiteboard."* The agent draws it piece by piece and highlights what it's explaining. You move a box, circle the part you're unsure about and leave a note. It reads exactly what you changed and answers on the board.
 
-### Listen when you draw back
+<img src="docs/media/architecture.gif" width="100%" alt="An agent chat beside a live whiteboard: the agent draws a checkout architecture step by step, the human drags Postgres, circles the queue and sends a note asking what happens if the email worker is down, and the agent reads the changes and adds a dead-letter queue">
 
-It's your board too. Circle something, scribble a question, move a box, or press **Note** to send a message. On its next look the agent gets a short list of exactly what you changed:
+**Explain a flow.** *"How does login work here?"* Arrows stay attached as things move, and the agent answers your notes on its next look.
 
-<img src="docs/media/draw-back.png" alt="A hand-drawn red circle around Redis with the note 'single point of failure?'" width="720">
+<img src="docs/media/demo.gif" width="100%" alt="The agent draws a login flow step by step, highlights the parts it explains, then answers a note left by the human">
 
-```text
-Human changes since your last read:
-Added (2):
-  freedraw "RSPj…" hand sketch (1345,193) 254×140 stroke #e03131
-  text "2CLo…" "single point of failure?" (1090,92) stroke #e03131
-```
+**Make something.** *"Paint the Mona Lisa, then refine it with the pencil."* Shapes, freehand strokes and frames, all editable.
 
-> MCP can't interrupt the agent mid-turn, so after you draw, just tell it to "look at the board".
+<img src="docs/media/mona-lisa.gif" width="100%" alt="An agent paints the Mona Lisa on the board, then refines the sky, hair and dress with pencil strokes">
 
-### Quick diagrams from Mermaid
+More to try:
 
-For sequence diagrams and quick flowcharts the agent can write Mermaid and get an editable hand-drawn diagram:
+- *"Explain how a request flows through this repo, on the whiteboard."*
+- *"Teach me how a TCP handshake works, step by step."*
+- *"Draw our deploy pipeline and mark the single points of failure."*
+- *"Compare option A and option B side by side on the board."*
+- *"I circled something on the board, take a look."*
 
-<img src="docs/media/mermaid.png" alt="An OAuth login sequence diagram converted from Mermaid" width="480">
+<br>
 
-### Keep and share boards
+<a name="quick-start"></a>
 
-- **One board per chat**, named after the topic and saved on disk, so it's still there after a restart.
-- Any later chat can open another chat's board by name: *"open the auth architecture board"*. It looks in this project first, then everywhere, so it also works in apps that start every task in a new folder (like Codex desktop).
-- **Save a frozen copy** to your library from the board's menu, with Cmd/Ctrl+S, or by asking the agent. Any later chat, in any project, can search your boards by the text on them and load a copy.
-- Export any board as `.excalidraw` (open it at [excalidraw.com](https://excalidraw.com)) or `.png`.
-
-More in [docs/boards.md](docs/boards.md).
-
-### Light and local
-
-- One runtime dependency (`ws`), no native addons, nothing to compile.
-- A small shared background process serves every agent session and exits when idle.
-- Everything stays on your machine: local-only server, token-protected, fonts bundled. Details in [docs/security.md](docs/security.md).
-- Eleven compact tools, about 7 KB of schema per turn, so it barely touches your context window.
-
-## Quick start
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/media/readme/steps-dark.svg">
+  <img src="docs/media/readme/steps-light.svg" width="100%" alt="Get started in a minute: 1. Clone and build. 2. Add it to your agent. 3. Ask for a drawing.">
+</picture>
 
 Requires Node.js 20+.
-
-**1. Install**
 
 ```sh
 git clone https://github.com/ansuman-shukla/whiteboard-mcp && cd whiteboard-mcp
 npm install && npm run build
+claude mcp add whiteboard --scope user -- node "$PWD/dist/cli.js"
 ```
 
-**2. Add it to your agent** (Claude Code shown; replace `/abs/path` with your clone's path)
+Codex, Cursor, Gemini CLI, OpenCode, Devin, VS Code, Claude Desktop and agents without MCP: see [client setup](docs/clients.md). For boards in a tab beside the chat, install the [IDE panel](docs/ide-panel.md). The bundled [skill](docs/clients.md#the-skill-recommended-for-every-agent) teaches the agent when a drawing helps.
 
-```sh
-claude mcp add whiteboard --scope user -- node /abs/path/dist/cli.js
-```
+<br>
 
-Codex, Cursor, Gemini CLI, OpenCode, Devin, VS Code, Claude Desktop and agents without MCP: see [docs/clients.md](docs/clients.md).
+<a href="docs/comparison.md">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/media/readme/compare-dark.svg">
+    <img src="docs/media/readme/compare-light.svg" width="100%" alt="whiteboard-mcp vs Excalidraw MCP: whiteboard-mcp sees what you draw back as a short list of changes, screenshots its own board, edits one shape in place, keeps boards beyond the chat, works in any MCP client plus a CLI, and converts Mermaid. Excalidraw MCP has animated camera moves and zero install.">
+  </picture>
+</a>
 
-**3. Ask for a drawing**
+<p align="center"><sub>Want a quick one-off diagram inside Claude or ChatGPT on the web? Excalidraw MCP is great for that. <a href="docs/comparison.md">Full comparison →</a></sub></p>
 
-The board opens in your browser, or in a tab beside the chat in VS Code, Cursor, Windsurf and Devin Desktop ([details](docs/boards.md#where-the-board-appears)). A few things to try:
+<br>
 
-- *"Explain how a request flows through this repo, on the whiteboard."*
-- *"Sketch the state machine in `src/checkout.ts`."*
-- *"Compare option A and option B side by side on the board."*
-- *"I drew something on the board, take a look."*
-
-**Optional:**
-
-- Using VS Code, Cursor or Windsurf? Install the [IDE panel extension](docs/ide-panel.md) to get boards in an editor tab beside the chat instead of the browser.
-- Install the bundled skill (`skills/whiteboard-explainer/`) so the agent knows when a drawing helps and how to explain well. See [docs/clients.md](docs/clients.md#the-skill-recommended-for-every-agent).
-
-## Tools
-
-| Tool | What it does |
-|---|---|
-| `canvas_open` | Show this chat's board, give it a title, open another chat's board (this project first, then any folder), or load a saved copy |
-| `canvas_draw` | Create or update shapes, text, labelled arrows bound to shapes, frames |
-| `canvas_read` | Describe the board, plus what you changed and noted since the agent last looked |
-| `canvas_focus` | Scroll your view to some elements and pulse a highlight around them |
-| `canvas_screenshot` | PNG of the board so the agent can check its layout |
-| `canvas_mermaid` | Turn a Mermaid diagram into hand-drawn elements |
-| `canvas_delete` | Delete elements, or clear the board |
-| `canvas_export` | Save the board as `.excalidraw` or `.png` in your project |
-| `canvas_save` | Save a frozen copy of the board to your library, so later chats can find it |
-| `canvas_search` | Find other chats' boards and saved copies, in every folder, by name or the text on them |
-| `canvas_guide` | Short guide for the agent on explaining well (layout, colours, sizes) |
-
-Every tool result also tells the agent when you've changed something since its last `canvas_read`.
-
-## How it works
-
-```
- you ◀──── chat ────▶ coding agent
-  │                        │ MCP (stdio) or CLI
-  │                        ▼
-  │                whiteboard-mcp ── HTTP + token ──▶ canvas daemon (127.0.0.1)
-  │                                                     │  JSON files on disk
-  └──── draws / watches ◀──── WebSocket ──── Excalidraw viewer
-```
-
-Each agent session runs its own small MCP server. They all talk to one shared daemon on `127.0.0.1`, which stores boards as JSON and syncs them live with the [Excalidraw](https://github.com/excalidraw/excalidraw) viewer in your browser or editor.
-
-## Docs
-
-- [Client setup](docs/clients.md): every supported agent, the CLI, and the skill
-- [Boards](docs/boards.md): which board a chat gets, finding and saving boards, and which window it shows up in
-- [IDE panel](docs/ide-panel.md): boards in a tab beside the chat in VS Code, Cursor and Windsurf
-- [Configuration](docs/configuration.md): environment variables and CLI commands
-- [Security](docs/security.md)
-- [AGENTS.md](AGENTS.md): architecture notes for contributors
-
-## Development
-
-```sh
-npm install
-npm run typecheck   # server + viewer
-npm test            # unit + integration (builds dist/ first)
-npm run build       # viewer (Vite) + server (tsc)
-npm run test:e2e    # Playwright: real daemon + viewer in Chromium
-npm run check       # everything
-npm run build:vscode  # IDE panel extension (.vsix), see docs/ide-panel.md
-```
-
-## License
-
-MIT. The canvas is built on [Excalidraw](https://github.com/excalidraw/excalidraw) (MIT).
+<p align="center">
+  <a href="docs/clients.md">Client setup</a> · <a href="docs/boards.md">Boards</a> · <a href="docs/ide-panel.md">IDE panel</a> · <a href="docs/tools.md">Tools &amp; how it works</a> · <a href="docs/configuration.md">Configuration</a> · <a href="docs/security.md">Security</a> · <a href="CONTRIBUTING.md">Contributing</a>
+  <br>
+  MIT License · built on <a href="https://github.com/excalidraw/excalidraw">Excalidraw</a>
+</p>
