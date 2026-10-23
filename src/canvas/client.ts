@@ -82,6 +82,23 @@ async function probe(): Promise<Endpoint | undefined> {
   return token && health?.app === APP_NAME && health.pid === info.pid ? { baseUrl, token } : undefined;
 }
 
+/** Why a daemon we started gave up, from its own last line in daemon.log (it logs e.g. `listen failed: ...` before exiting). */
+function startFailure(pid: number | undefined, code: number | null, signal: NodeJS.Signals | null): CanvasError {
+  const logFile = statePath('daemon.log');
+  let log = '';
+  try {
+    log = readFileSync(logFile, 'utf8');
+  } catch {
+    // the daemon could not write its log either
+  }
+  const reason = pid === undefined ? undefined : log.split('\n').filter((line) => line.includes(` [${pid}] `)).pop()?.replace(/^\S+ \[\d+\] /, '');
+  const how = code === null ? `was stopped (${signal})` : `exited with code ${code}`;
+  const sandboxed = /\b(EPERM|EACCES)\b/.test(reason ?? '')
+    ? ' Listening on 127.0.0.1 is not permitted here, probably a sandbox: run whiteboard-mcp outside it (e.g. as an MCP server rather than from a sandboxed shell) or allow local network access.'
+    : '';
+  return new CanvasError(`canvas daemon ${how} before it was ready${reason ? `: ${reason}` : ''} (see ${logFile}).${sandboxed}`, 503, 'daemon_start_failed');
+}
+
 async function discover(opts: ConnectOptions): Promise<Endpoint> {
   const found = await probe();
   if (found) return found;
@@ -91,7 +108,9 @@ async function discover(opts: ConnectOptions): Promise<Endpoint> {
   // cwd = state dir so the daemon never pins the caller's project directory. Concurrent spawns are
   // safe: the daemon's lock lets exactly one of them run.
   const child = spawn(process.execPath, [entry, 'serve'], { detached: true, stdio: 'ignore', env: process.env, cwd: stateDir() });
+  let exit: { code: number | null; signal: NodeJS.Signals | null } | undefined;
   child.once('error', (err) => (spawnError = err));
+  child.once('exit', (code, signal) => (exit = { code, signal }));
   child.unref();
   const timeoutMs = opts.startTimeoutMs ?? 8000;
   const deadline = Date.now() + timeoutMs;
@@ -100,6 +119,8 @@ async function discover(opts: ConnectOptions): Promise<Endpoint> {
     await sleep(POLL_MS);
     const endpoint = await probe();
     if (endpoint) return endpoint;
+    // Exit code 0 means another daemon holds the lock; keep probing for that one.
+    if (exit && exit.code !== 0) throw startFailure(child.pid, exit.code, exit.signal);
   }
   throw new CanvasError(`canvas daemon did not start within ${timeoutMs}ms (see ${statePath('daemon.log')})`, 503, 'daemon_start_timeout');
 }

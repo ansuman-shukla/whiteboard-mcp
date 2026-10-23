@@ -114,8 +114,10 @@ export class ChatContext {
     const url = client.viewerUrl(ref.id);
     const mode = process.env.WHITEBOARD_OPEN?.trim();
     if (mode === 'none') return { launched: false, note: `Nobody is watching the board; the human can open ${url}.` };
-    if (mode && mode !== 'auto') return { launched: true, note: `${openViewer(url)}.` };
-    if (!insideIde()) return { launched: true, note: `${openViewer(url)}.` };
+    if ((mode && mode !== 'auto') || !insideIde()) {
+      const { opened, note } = await openViewer(url);
+      return opened ? { launched: true, note: `${note}.` } : { launched: false, note: `${note}, so the human can't see the board yet; ask them to open ${url}.` };
+    }
     return { launched: false, note: `No whiteboard panel is connected in the editor, so the human can't see the board yet. Ask them to open the whiteboard panel (or this link themselves: ${url}). Do not open board links in a browser or preview tool yourself.` };
   }
 

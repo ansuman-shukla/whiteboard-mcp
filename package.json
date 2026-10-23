@@ -1,5 +1,5 @@
 {
-  "name": "whiteboard-mcp",
+  "name": "@ansuman-shukla/whiteboard-mcp",
   "version": "0.1.0",
   "description": "A live whiteboard your coding agent draws on to explain things, side by side with you. MCP server and CLI with a hand-drawn Excalidraw canvas.",
   "type": "module",
@@ -58,6 +58,9 @@
     "opencode"
   ],
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "author": "Ansuman Shukla",
   "repository": {
     "type": "git",
