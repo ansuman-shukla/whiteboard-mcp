@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const { WhiteboardHost, whiteboardHome } = require('../../vscode/host.js');
@@ -155,16 +155,27 @@ describe('WhiteboardHost', () => {
   });
 
   it('gives up on a connection that never opens and tries again', async () => {
-    const { host } = makeHost({ connectTimeoutMs: 15 });
-    host.start();
-    await sleep(5);
-    expect(FakeSocket.all).toHaveLength(1);
-    await sleep(50);
-    expect(FakeSocket.all[0]!.readyState).toBe(3);
-    expect(FakeSocket.all.length).toBeGreaterThanOrEqual(2);
-    FakeSocket.all.at(-1)!.open();
-    await sleep(40);
-    expect(FakeSocket.all.at(-1)!.readyState).toBe(1);
+    vi.useFakeTimers();
+    try {
+      const { host } = makeHost({ connectTimeoutMs: 1000, reconnectMs: 50 });
+      host.start();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(FakeSocket.all).toHaveLength(1);
+      const first = FakeSocket.all[0]!;
+      await vi.advanceTimersByTimeAsync(999);
+      expect(first.readyState).toBe(0);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(first.readyState).toBe(3);
+      await vi.advanceTimersByTimeAsync(50);
+      expect(FakeSocket.all).toHaveLength(2);
+      const second = FakeSocket.all[1]!;
+      second.open();
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(second.readyState).toBe(1);
+      expect(FakeSocket.all).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('ignores invalid daemon info and keeps waiting', async () => {
