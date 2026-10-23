@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>whiteboard-mcp: local Excalidraw whiteboard MCP server for coding agents</title>
+<meta name="description" content="Free, open-source Excalidraw whiteboard MCP server that runs locally and offline. Claude Code, Codex, Cursor, Gemini CLI and VS Code agents draw diagrams live beside the chat and see what you draw back.">
+<link rel="canonical" href="https://ansuman-shukla.github.io/whiteboard-mcp/">
+<link rel="alternate" type="text/plain" title="llms.txt" href="https://ansuman-shukla.github.io/whiteboard-mcp/llms.txt">
+<meta name="theme-color" content="#fafaf7">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="whiteboard-mcp">
+<meta property="og:title" content="whiteboard-mcp: a live whiteboard your coding agent draws on">
+<meta property="og:description" content="Local, offline Excalidraw MCP server. Your agent draws diagrams beside the chat and sees what you draw back. Works with Claude Code, Codex, Cursor, Gemini CLI, VS Code and any MCP client.">
+<meta property="og:url" content="https://ansuman-shukla.github.io/whiteboard-mcp/">
+<meta property="og:image" content="https://ansuman-shukla.github.io/whiteboard-mcp/media/social-preview.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="whiteboard-mcp: a live whiteboard your coding agent draws on. You draw back.">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "whiteboard-mcp",
+  "alternateName": ["Whiteboard MCP", "Excalidraw whiteboard MCP server"],
+  "description": "Free, open-source Excalidraw whiteboard MCP server that runs locally and offline. Coding agents draw diagrams live beside the chat and see what the user draws back.",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "macOS, Windows, Linux",
+  "url": "https://ansuman-shukla.github.io/whiteboard-mcp/",
+  "image": "https://ansuman-shukla.github.io/whiteboard-mcp/media/social-preview.png",
+  "downloadUrl": "https://www.npmjs.com/package/@ansuman-shukla/whiteboard-mcp",
+  "installUrl": "https://github.com/ansuman-shukla/whiteboard-mcp#add-it-to-your-agent",
+  "softwareRequirements": "Node.js 20 or newer",
+  "license": "https://opensource.org/licenses/MIT",
+  "isAccessibleForFree": true,
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "author": { "@type": "Person", "name": "Ansuman Shukla", "url": "https://github.com/ansuman-shukla" },
+  "sameAs": ["https://github.com/ansuman-shukla/whiteboard-mcp", "https://www.npmjs.com/package/@ansuman-shukla/whiteboard-mcp"],
+  "keywords": "MCP server, Model Context Protocol, Excalidraw, whiteboard, diagrams, architecture diagram, flowchart, Mermaid, offline, local, Claude Code, Codex, Cursor, Gemini CLI, VS Code, Windsurf, coding agent"
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    { "@type": "Question", "name": "Is there an Excalidraw MCP server that runs locally and works offline?", "acceptedAnswer": { "@type": "Answer", "text": "Yes, whiteboard-mcp. It runs a small daemon on 127.0.0.1 and serves the Excalidraw viewer with its fonts bundled. After the first npx download it needs no internet, no account and no API key. Boards are plain JSON files in ~/.whiteboard-mcp." } },
+    { "@type": "Question", "name": "How do I let Claude Code, Codex or Cursor draw diagrams?", "acceptedAnswer": { "@type": "Answer", "text": "Add the MCP server with one line, for example: claude mcp add whiteboard --scope user -- npx -y @ansuman-shukla/whiteboard-mcp. Start a new chat and ask the agent to draw something on the whiteboard. It draws step by step on a live Excalidraw board beside the chat." } },
+    { "@type": "Question", "name": "Can the agent see what I draw on the whiteboard?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Every time it looks, it gets a short list of what you added, moved or deleted, plus any notes you left. It can also take a PNG screenshot of the board to check its own layout." } },
+    { "@type": "Question", "name": "Which agents and editors does it work with?", "acceptedAnswer": { "@type": "Answer", "text": "Any MCP client: Claude Code, Claude Desktop, OpenAI Codex, Cursor, Gemini CLI, VS Code (Copilot agent mode), Windsurf, Devin, OpenCode and more. Agents without MCP can use the whiteboard-mcp call CLI. An IDE panel shows boards in a tab beside the chat in VS Code, Cursor, Windsurf and Devin Desktop." } },
+    { "@type": "Question", "name": "Can it turn Mermaid into an Excalidraw diagram, or export it?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. canvas_mermaid converts Mermaid into editable hand-drawn elements, and canvas_export saves the board as .excalidraw or .png in your project." } },
+    { "@type": "Question", "name": "Is it free and private?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. It is MIT licensed with no license key or paid tier. Everything stays on your machine: the daemon only listens on 127.0.0.1 and every API call needs a per-user token." } }
+  ]
+}
+</script>
+<style>
+:root{--bg:#fafaf7;--tile:#fff;--line:#e7e5df;--head:#1c1c1a;--body:#5c5c57;--faint:#8a8a84;--code:#f1f0ea;--accent:#4dabf7}
+@media (prefers-color-scheme:dark){:root{--bg:#202020;--tile:#2a2a2a;--line:#363636;--head:#efeee6;--body:#b8b8b0;--faint:#85857f;--code:#2a2a2a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--body);font:17px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif}
+main{max-width:960px;margin:0 auto;padding:48px 24px 80px}
+h1,h2,h3{color:var(--head);line-height:1.2}
+h1{font:700 clamp(40px,7vw,64px)/1.05 'New York','Iowan Old Style',ui-serif,Georgia,serif;margin:0}
+h2{font:700 32px/1.2 'New York','Iowan Old Style',ui-serif,Georgia,serif;margin:64px 0 16px}
+h3{font-size:19px;margin:28px 0 6px}
+a{color:var(--accent)}
+.brand{display:flex;align-items:center;gap:18px}
+.brand svg{flex:none}
+.tagline{font-size:clamp(22px,3.4vw,30px);font-weight:600;color:var(--head);margin:24px 0 8px}
+.tagline span{color:var(--faint)}
+pre{background:var(--code);border:1px solid var(--line);border-radius:12px;padding:14px 18px;overflow-x:auto;font:14px/1.6 ui-monospace,'SF Mono',Menlo,Consolas,monospace;color:var(--head)}
+code{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:.9em}
+img{max-width:100%;height:auto;border-radius:12px;border:1px solid var(--line)}
+figure{margin:24px 0}
+figcaption{font-size:14px;color:var(--faint);text-align:center;margin-top:6px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.card{background:var(--tile);border:1px solid var(--line);border-radius:18px;padding:20px 22px}
+.card h3{margin-top:0}
+.links{display:flex;flex-wrap:wrap;gap:12px 20px;margin-top:20px}
+footer{margin-top:72px;font-size:14px;color:var(--faint)}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div class="brand">
+    <svg width="72" height="72" viewBox="0 0 120 120" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4dabf7"/><stop offset="1" stop-color="#9775fa"/></linearGradient></defs><rect width="120" height="120" rx="28" fill="url(#lg)"/><rect x="18" y="30" width="34" height="24" rx="6" fill="none" stroke="#fff" stroke-width="5"/><rect x="68" y="66" width="34" height="24" rx="6" fill="#fff"/><path d="M35 54c0 16 8 24 30 24" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/><path d="M58 70l8 8-8 8" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="M74 26c6-4 14-4 22 2" fill="none" stroke="#ffa94d" stroke-width="5" stroke-linecap="round"/></svg>
+    <h1>whiteboard-mcp</h1>
+  </div>
+  <p class="tagline">A live whiteboard your coding agent draws on. <span>You draw back.</span></p>
+  <p><strong>whiteboard-mcp</strong> is a free, open-source <strong>Excalidraw whiteboard MCP server</strong> that runs locally, even offline. Your coding agent draws diagrams on a live board beside the chat, and sees what you draw back. Works with Claude Code, Codex, Cursor, Gemini CLI, VS Code, Windsurf, Devin and any other MCP client.</p>
+  <pre><code>claude mcp add whiteboard --scope user -- npx -y @ansuman-shukla/whiteboard-mcp</code></pre>
+  <div class="links">
+    <a href="https://github.com/ansuman-shukla/whiteboard-mcp">GitHub</a>
+    <a href="https://www.npmjs.com/package/@ansuman-shukla/whiteboard-mcp">npm</a>
+    <a href="#add-it-to-your-agent">Setup for every agent</a>
+    <a href="#faq">FAQ</a>
+  </div>
+</header>
+
+<figure>
+  <img src="media/dots-and-boxes.gif" width="1200" height="684" alt="Playing Dots and Boxes with a coding agent: the human draws a line on the board, the agent sees the move and plays back">
+  <figcaption>Playing Dots and Boxes with an agent: you draw a line, it sees your move and plays back.</figcaption>
+</figure>
+
+<section>
+  <h2 id="features">Features</h2>
+  <div class="grid">
+    <div class="card"><h3>Draws step by step</h3>Boxes, arrows and notes, one idea at a time, pointing at each part as it explains.</div>
+    <div class="card"><h3>Sees what you draw</h3>Move, circle or note anything. The agent gets a short list of exactly what changed.</div>
+    <div class="card"><h3>Right beside the chat</h3>A tab next to the chat in VS Code, Cursor, Windsurf and Devin Desktop, or your browser.</div>
+    <div class="card"><h3>Remembers boards</h3>One board per chat, saved on disk. Reopen or search it from any later chat.</div>
+    <div class="card"><h3>Local, private, offline</h3>Runs on 127.0.0.1 with a token. Fonts are bundled. Nothing leaves your machine.</div>
+    <div class="card"><h3>Tiny</h3>One runtime dependency and about 7 KB of tool schema per turn.</div>
+  </div>
+</section>
+
+<section>
+  <h2 id="what-you-can-do">What you can do with it</h2>
+  <h3>Understand an architecture</h3>
+  <p><em>"How does a typical checkout backend work? Draw it on the whiteboard."</em> The agent draws it piece by piece. You move a box, circle the part you're unsure about and leave a note. It reads exactly what you changed and answers on the board.</p>
+  <figure><img src="media/architecture.gif" loading="lazy" width="1200" height="630" alt="An agent draws a checkout architecture step by step; the human circles the queue and asks what happens if the email worker is down; the agent adds a dead-letter queue"></figure>
+  <h3>Explain a flow</h3>
+  <p><em>"How does login work here?"</em> Arrows stay attached as things move, and the agent answers your notes on its next look.</p>
+  <figure><img src="media/demo.gif" loading="lazy" width="1080" height="662" alt="The agent draws a login flow step by step, highlights the parts it explains, then answers a note left by the human"></figure>
+  <h3>Make something</h3>
+  <p><em>"Paint the Mona Lisa, then refine it with the pencil."</em> Shapes, freehand strokes and frames, all editable.</p>
+  <figure><img src="media/mona-lisa.gif" loading="lazy" width="1200" height="682" alt="An agent paints the Mona Lisa on the board, then refines it with pencil strokes"></figure>
+</section>
+
+<section>
+  <h2 id="add-it-to-your-agent">Add it to your agent</h2>
+  <p>Needs Node.js 20+. Add it, then start a new chat and ask for a drawing.</p>
+<pre><code># Claude Code
+claude mcp add whiteboard --scope user -- npx -y @ansuman-shukla/whiteboard-mcp
+
+# Codex CLI
+codex mcp add whiteboard -- npx -y @ansuman-shukla/whiteboard-mcp
+
+# Gemini CLI
+gemini mcp add --scope user whiteboard npx -y @ansuman-shukla/whiteboard-mcp
+
+# Devin CLI
+devin mcp add whiteboard --scope user -- npx -y @ansuman-shukla/whiteboard-mcp
+
+# VS Code
+code --add-mcp '{"name":"whiteboard","command":"npx","args":["-y","@ansuman-shukla/whiteboard-mcp"]}'</code></pre>
+  <p><strong>Cursor, Claude Desktop, Windsurf and other JSON configs:</strong></p>
+  <pre><code>{ "mcpServers": { "whiteboard": { "command": "npx", "args": ["-y", "@ansuman-shukla/whiteboard-mcp"] } } }</code></pre>
+  <p>More clients, the CLI for agents without MCP and the IDE panel: <a href="https://github.com/ansuman-shukla/whiteboard-mcp/blob/main/docs/clients.md">client setup</a>.</p>
+</section>
+
+<section>
+  <h2 id="comparison">whiteboard-mcp vs Excalidraw MCP</h2>
+  <p><a href="https://github.com/excalidraw/excalidraw-mcp">Excalidraw MCP</a> streams a diagram into the chat as an inline widget, great for a quick one-off diagram in Claude or ChatGPT on the web. whiteboard-mcp gives the agent a board beside the chat that you both work on: it sees what you draw back, screenshots its own board, edits one shape in place, keeps boards across chats, converts Mermaid, and works in any MCP client plus a plain CLI. <a href="https://github.com/ansuman-shukla/whiteboard-mcp/blob/main/docs/comparison.md">Full comparison</a>.</p>
+</section>
+
+<section>
+  <h2 id="faq">FAQ</h2>
+  <h3>Is there an Excalidraw MCP server that runs locally and works offline?</h3>
+  <p>Yes, that's whiteboard-mcp. It runs a small daemon on <code>127.0.0.1</code> and serves the Excalidraw viewer with its fonts bundled. After the first <code>npx</code> download it needs no internet, no account and no API key. Boards are plain JSON files in <code>~/.whiteboard-mcp</code>.</p>
+  <h3>How do I let Claude Code, Codex or Cursor draw diagrams?</h3>
+  <p>Add the MCP server with the one-line command for your agent <a href="#add-it-to-your-agent">above</a>, start a new chat and ask: <em>"Draw how this repo handles a request on the whiteboard."</em></p>
+  <h3>Can the agent see what I draw on the whiteboard?</h3>
+  <p>Yes. Every time it looks, it gets a short list of what you added, moved or deleted, plus any notes you left. It can also take a PNG screenshot of the board to check its own layout.</p>
+  <h3>Which agents and editors does it work with?</h3>
+  <p>Any MCP client: Claude Code, Claude Desktop, OpenAI Codex, Cursor, Gemini CLI, VS Code (Copilot agent mode), Windsurf, Devin, OpenCode and more. Agents without MCP can use the plain <code>whiteboard-mcp call</code> CLI.</p>
+  <h3>Can it turn Mermaid into an Excalidraw diagram, or export it?</h3>
+  <p>Yes. <code>canvas_mermaid</code> converts Mermaid into editable hand-drawn elements, and <code>canvas_export</code> saves the board as <code>.excalidraw</code> or <code>.png</code> in your project.</p>
+  <h3>Is it free and private?</h3>
+  <p>Yes. It's MIT licensed with no license key or paid tier. Everything stays on your machine: the daemon only listens on <code>127.0.0.1</code> and every API call needs a per-user token.</p>
+</section>
+
+<footer>
+  MIT License · <a href="https://github.com/ansuman-shukla/whiteboard-mcp">github.com/ansuman-shukla/whiteboard-mcp</a> · built on <a href="https://github.com/excalidraw/excalidraw">Excalidraw</a>
+</footer>
+</main>
+</body>
+</html>
