@@ -1,31 +1,31 @@
 # Client setup
 
-Build once (see the [README](../README.md#quick-start)), then point your agent at `dist/cli.js`. Replace `/abs/path` with the path of your clone.
+Every client runs the server with `npx -y @ansuman-shukla/whiteboard-mcp` (Node.js 20+). The first start downloads it once; later starts use the cache. To run your own build instead, replace the command with `node /abs/path/dist/cli.js` (see [CONTRIBUTING.md](../CONTRIBUTING.md)).
 
 ## Claude Code
 
 ```sh
-claude mcp add whiteboard --scope user -- node /abs/path/dist/cli.js
+claude mcp add whiteboard --scope user -- npx -y @ansuman-shukla/whiteboard-mcp
 ```
 
 ## OpenAI Codex CLI
 
 ```sh
-codex mcp add whiteboard -- node /abs/path/dist/cli.js
+codex mcp add whiteboard -- npx -y @ansuman-shukla/whiteboard-mcp
 ```
 
 or in `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.whiteboard]
-command = "node"
-args = ["/abs/path/dist/cli.js"]
+command = "npx"
+args = ["-y", "@ansuman-shukla/whiteboard-mcp"]
 ```
 
 ## Devin CLI
 
 ```sh
-devin mcp add whiteboard --scope user -- node /abs/path/dist/cli.js
+devin mcp add whiteboard --scope user -- npx -y @ansuman-shukla/whiteboard-mcp
 ```
 
 This writes `~/.config/devin/mcp_config.json`; `--scope project` writes `.devin/mcp_config.json` instead.
@@ -35,7 +35,7 @@ This writes `~/.config/devin/mcp_config.json`; `--scope project` writes `.devin/
 `opencode.json`:
 
 ```json
-{ "mcp": { "whiteboard": { "type": "local", "command": ["node", "/abs/path/dist/cli.js"] } } }
+{ "mcp": { "whiteboard": { "type": "local", "command": ["npx", "-y", "@ansuman-shukla/whiteboard-mcp"] } } }
 ```
 
 ## Cursor, Gemini CLI, Claude Desktop
@@ -43,7 +43,7 @@ This writes `~/.config/devin/mcp_config.json`; `--scope project` writes `.devin/
 `~/.cursor/mcp.json`, `~/.gemini/settings.json`, or Claude Desktop's config:
 
 ```json
-{ "mcpServers": { "whiteboard": { "command": "node", "args": ["/abs/path/dist/cli.js"] } } }
+{ "mcpServers": { "whiteboard": { "command": "npx", "args": ["-y", "@ansuman-shukla/whiteboard-mcp"] } } }
 ```
 
 ## VS Code
@@ -51,14 +51,21 @@ This writes `~/.config/devin/mcp_config.json`; `--scope project` writes `.devin/
 `.vscode/mcp.json`:
 
 ```json
-{ "servers": { "whiteboard": { "type": "stdio", "command": "node", "args": ["/abs/path/dist/cli.js"] } } }
+{ "servers": { "whiteboard": { "type": "stdio", "command": "npx", "args": ["-y", "@ansuman-shukla/whiteboard-mcp"] } } }
 ```
 
 In VS Code, Cursor and Windsurf, install the [IDE panel extension](ide-panel.md) to see boards in a tab beside the chat, for the editor's own agent and for agents in its terminal.
 
 ## Agents without MCP (pi and others)
 
-Copy `skills/whiteboard-explainer/` into the agent's skills folder and put `whiteboard-mcp` on your PATH (`npm link` in the clone). The agent then runs the same tools from the shell:
+Install it globally so `whiteboard-mcp` is on your PATH, and copy the skill into the agent's skills folder:
+
+```sh
+npm install -g @ansuman-shukla/whiteboard-mcp
+cp -r "$(npm root -g)/@ansuman-shukla/whiteboard-mcp/skills/whiteboard-explainer" <agent-skills-folder>/
+```
+
+The agent then runs the same tools from the shell:
 
 ```sh
 whiteboard-mcp tools                                  # tool names + input schemas
@@ -71,4 +78,4 @@ CLI calls share the "last read" cursor, so they behave like one session.
 
 ## The skill (recommended for every agent)
 
-`skills/whiteboard-explainer/SKILL.md` teaches the agent when a drawing helps and how to explain step by step. MCP agents benefit from it too. Install it wherever your agent loads skills, e.g. `~/.claude/skills/`, `~/.config/devin/skills/` or `~/.agents/skills/`.
+`skills/whiteboard-explainer/SKILL.md` (in this repo, and in the installed package) teaches the agent when a drawing helps and how to explain step by step. MCP agents benefit from it too. Install it wherever your agent loads skills, e.g. `~/.claude/skills/`, `~/.config/devin/skills/` or `~/.agents/skills/`.
