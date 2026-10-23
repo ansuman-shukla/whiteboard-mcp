@@ -17,6 +17,7 @@
     "build:frontend": "vite build",
     "build:server": "tsc -p tsconfig.json && node -e \"require('fs').chmodSync('dist/cli.js',0o755)\"",
     "build:vscode": "node scripts/build-vsix.mjs",
+    "readme:art": "node scripts/render-readme-art.mjs",
     "dev": "vite",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p frontend/tsconfig.json --noEmit",
     "test": "vitest run",
