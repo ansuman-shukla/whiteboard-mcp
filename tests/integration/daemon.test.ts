@@ -18,7 +18,8 @@ function el(id: string, over: Partial<ExElement> = {}): ExElement {
 }
 
 async function start(opts: Partial<DaemonOptions> = {}): Promise<Daemon> {
-  const d = await startDaemon({ port: 0, dir: join(root, 'state'), frontendDir, ...opts });
+  // Hinted shows answer at once unless a test is about a fresh daemon's grace period for hosts.
+  const d = await startDaemon({ port: 0, dir: join(root, 'state'), frontendDir, hostGraceMs: 0, ...opts });
   daemons.push(d);
   return d;
 }
@@ -227,6 +228,108 @@ describe('rest api', () => {
     }).catch(() => -1);
     expect(status).toBe(413);
     expect((await api(d, '/api/canvases/c1')).status).toBe(404);
+  });
+});
+
+describe('saved boards', () => {
+  const W = '/work/alpha';
+  const label = (id: string, text: string) => el(id, { type: 'text', text });
+
+  async function board(d: Daemon, id: string, meta: Record<string, string>, elements: ExElement[]) {
+    await api(d, `/api/canvases/${id}`, { method: 'PUT', body: meta });
+    await api(d, `/api/canvases/${id}/elements`, { body: { elements } });
+  }
+
+  it('saves a frozen copy, finds it, loads it into another board (broadcast to its viewers) and deletes it', async () => {
+    const d = await start();
+    await board(d, 'src', { title: 'Auth flow', workspace: W, chat: 'c1' }, [el('a', { version: 3 }), label('t', 'JWT issued by login')]);
+    const { status, body: saved } = await apiJson(d, '/api/canvases/src/save', { body: {} });
+    expect(status).toBe(200);
+    expect(saved).toEqual({ id: expect.stringMatching(/^auth-flow-[0-9a-f]{6}$/), name: 'Auth flow', savedAt: expect.any(Number), elementCount: 2, source: 'src', workspace: W });
+    await api(d, '/api/canvases/src/clear', { body: {} });
+    expect((await apiJson(d, `/api/saved/${saved.id}`)).body.elements.map((e: ExElement) => e.id)).toEqual(['a', 't']);
+
+    expect((await apiJson(d, `/api/saved?q=${encodeURIComponent('jwt LOGIN')}`)).body).toEqual([{ ...saved, snippet: 'JWT issued by login' }]);
+    expect((await apiJson(d, '/api/saved?q=nothing')).body).toEqual([]);
+
+    await board(d, 'dst', {}, [el('old'), el('a', { version: 50 })]);
+    const v = await viewer(d, 'dst');
+    await v.take('snapshot');
+    const loaded = await apiJson(d, '/api/canvases/dst/load', { body: { saved: saved.id } });
+    expect(loaded.status).toBe(200);
+    expect(loaded.body.applied.sort()).toEqual(['a', 'old', 't']);
+    const msg = await v.take('elements');
+    expect(msg).toMatchObject({ actor: 'agent', rev: loaded.body.rev });
+    expect(msg.elements.map((e) => [e.id, e.isDeleted]).sort()).toEqual([['a', false], ['old', true], ['t', false]]);
+    expect((await apiJson(d, '/api/canvases/dst')).body.elements.map((e: ExElement) => e.id).sort()).toEqual(['a', 't']);
+    expect((await apiJson(d, '/api/canvases/dst')).body.elements.find((e: ExElement) => e.id === 'a').version).toBe(51);
+
+    expect((await api(d, `/api/saved/${saved.id}`, { method: 'DELETE' })).status).toBe(200);
+    expect((await api(d, `/api/saved/${saved.id}`, { method: 'DELETE' })).status).toBe(404);
+    expect((await api(d, `/api/saved/${saved.id}`)).status).toBe(404);
+    expect((await apiJson(d, '/api/saved')).body).toEqual([]);
+  });
+
+  it('ranks the given workspace first and a new daemon finds earlier saves', async () => {
+    const d = await start();
+    await board(d, 'b1', { title: 'Cache', workspace: W }, [label('t', 'auth tokens')]);
+    await board(d, 'b2', { title: 'Auth', workspace: '/work/beta' }, []);
+    await api(d, '/api/canvases/b1/save', { body: {} });
+    await api(d, '/api/canvases/b2/save', { body: { name: 'Auth overview' } });
+    const names = async (dd: Daemon, query: string) => ((await apiJson(dd, `/api/saved?${query}`)).body as Array<{ name: string }>).map((s) => s.name);
+    expect(await names(d, `q=auth&workspace=${encodeURIComponent(W)}`)).toEqual(['Cache', 'Auth overview']);
+    expect(await names(d, 'q=auth')).toEqual(['Auth overview', 'Cache']);
+    expect(await names(d, 'limit=1')).toHaveLength(1);
+    await d.close();
+    daemons.splice(daemons.indexOf(d), 1);
+    expect(await names(await start(), 'q=tokens')).toEqual(['Cache']);
+  });
+
+  it('maps bad input to 400/401/404/405', async () => {
+    const d = await start();
+    expect((await api(d, '/api/saved', { token: null })).status).toBe(401);
+    expect((await api(d, '/api/canvases/missing/save', { body: {} })).status).toBe(404);
+    await board(d, 'c1', {}, [el('a')]);
+    expect((await apiJson(d, '/api/canvases/c1/save', { body: { name: '  ' } })).status).toBe(400);
+    expect((await apiJson(d, '/api/canvases/c1/save', { body: { name: 7 } })).status).toBe(400);
+    expect((await apiJson(d, '/api/canvases/c1/load', { body: {} })).status).toBe(400);
+    expect((await apiJson(d, '/api/canvases/c1/load', { body: { saved: 'nope' } })).status).toBe(404);
+    expect((await apiJson(d, '/api/canvases/missing/load', { body: { saved: 'nope' } })).status).toBe(404);
+    expect((await apiJson(d, '/api/canvases/c1/save')).status).toBe(405);
+    expect((await apiJson(d, '/api/saved', { method: 'POST', body: {} })).status).toBe(405);
+    expect((await apiJson(d, '/api/saved/x', { method: 'PUT', body: {} })).status).toBe(405);
+    expect((await apiJson(d, '/api/saved/a/b')).status).toBe(404);
+    for (const limit of ['0', '51', '1.5', 'x']) expect((await apiJson(d, `/api/saved?limit=${limit}`)).status).toBe(400);
+  });
+
+  it('searches live boards of every folder, this workspace first, and requires the token', async () => {
+    const d = await start();
+    await board(d, 'b1', { title: 'Cache', workspace: W }, [label('t', 'auth tokens')]);
+    await board(d, 'b2', { title: 'Auth', workspace: '/work/beta' }, [el('a')]);
+    await board(d, 'b3', { title: 'Auth empty', workspace: W }, []);
+    const ids = async (query: string) => ((await apiJson(d, `/api/search?${query}`)).body as Array<{ id: string }>).map((s) => s.id);
+    expect(await ids(`q=auth&workspace=${encodeURIComponent(W)}`)).toEqual(['b1', 'b2']);
+    expect(await ids('q=auth')).toEqual(['b2', 'b1']);
+    expect((await apiJson(d, '/api/search?q=tokens')).body).toEqual([expect.objectContaining({ id: 'b1', title: 'Cache', workspace: W, snippet: 'auth tokens' })]);
+    expect(await ids('limit=1')).toHaveLength(1);
+    expect((await api(d, '/api/search', { token: null })).status).toBe(401);
+    expect((await apiJson(d, '/api/search', { method: 'POST', body: {} })).status).toBe(405);
+    for (const limit of ['0', '51', 'x']) expect((await apiJson(d, `/api/search?limit=${limit}`)).status).toBe(400);
+  });
+
+  it('a viewer saves its board over the socket and gets the result back', async () => {
+    const d = await start();
+    await board(d, 'c1', { title: 'Sketch', workspace: W }, []);
+    const v = await viewer(d, 'c1');
+    await v.take('snapshot');
+    v.send({ t: 'elements', elements: [label('t', 'drawn by the human')] });
+    v.send({ t: 'save' });
+    expect(await v.take('saved')).toMatchObject({ ok: true, saved: { name: 'Sketch', elementCount: 1, source: 'c1', workspace: W } });
+    v.send({ t: 'save', name: 'Human sketch' });
+    expect(await v.take('saved')).toMatchObject({ ok: true, saved: { name: 'Human sketch' } });
+    v.send({ t: 'save', name: '' });
+    expect(await v.take('saved')).toEqual({ t: 'saved', ok: false, error: 'name must be a non-empty string' });
+    expect((await apiJson(d, '/api/saved?q=human')).body.map((s: { name: string }) => s.name)).toEqual(['Human sketch', 'Sketch']);
   });
 });
 
@@ -620,6 +723,58 @@ describe('panel hosts', () => {
     h.ws.close();
     expect(await dropped).toEqual({ status: 502, body: { error: 'host_disconnected' } });
     await until(() => d.stats().hosts === 0 && d.stats().pending === 0);
+  });
+
+  it("a fresh daemon waits for the hinted window's host to connect, and shows the board only there", async () => {
+    // The agent's first call started the daemon; windows find it by polling daemon.json every few seconds.
+    const d = await start({ hostGraceMs: 3000 });
+    await board(d, 'mcp', '/w');
+    const pending = showTo(d, { workspace: '/w', host: '111' });
+    await sleep(100);
+    expect(d.stats().pending).toBe(1);
+    const other = await host(d, { folders: ['/w'], focused: true, hostId: '222' });
+    await sleep(50);
+    expect(d.stats().pending).toBe(1);
+    const own = await host(d, { folders: [], focused: false, hostId: '111' });
+    await until(() => own.shows.length === 1);
+    own.reply(own.shows[0]!.reqId);
+    expect(await pending).toEqual({ status: 200, body: { shown: true } });
+    expect(other.shows).toEqual([]);
+    expect(d.stats().pending).toBe(0);
+  });
+
+  it('answers no_host once the grace period is over, and never waits for shows without a window hint', async () => {
+    const d = await start({ hostGraceMs: 400 });
+    await board(d, 'mcp', '/w');
+    let started = Date.now();
+    expect(await showTo(d, { workspace: '/w' })).toEqual({ status: 409, body: { error: 'no_host' } });
+    expect(Date.now() - started).toBeLessThan(200);
+    expect(await showTo(d, { workspace: '/w', host: '111' })).toEqual({ status: 409, body: { error: 'no_host' } });
+    expect(Date.now() - started).toBeGreaterThanOrEqual(300);
+    started = Date.now();
+    expect(await showTo(d, { workspace: '/w', host: '111' })).toEqual({ status: 409, body: { error: 'no_host' } });
+    expect(Date.now() - started).toBeLessThan(200);
+    expect(d.stats().pending).toBe(0);
+  });
+
+  it('drops a waiting show when its caller leaves or the daemon shuts down', async () => {
+    const d = await start({ hostGraceMs: 5000 });
+    await board(d, 'mcp', '/w');
+    const abort = new AbortController();
+    const gone = fetch(`${d.url}/api/canvases/mcp/show`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${d.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspace: '/w', host: '111' }),
+      signal: abort.signal,
+    }).catch(() => 'aborted');
+    await until(() => d.stats().pending === 1);
+    abort.abort();
+    expect(await gone).toBe('aborted');
+    await until(() => d.stats().pending === 0);
+    const waiting = showTo(d, { workspace: '/w', host: '111' });
+    await until(() => d.stats().pending === 1);
+    await d.close();
+    expect(await waiting).toEqual({ status: 503, body: { error: 'shutting_down' } });
   });
 
   it('requires the token and the daemon origin for hosts', async () => {

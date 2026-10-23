@@ -9,12 +9,14 @@ import {
   type BinaryFile,
   type CanvasMeta,
   type CanvasNote,
+  type CanvasSearchHit,
   type CanvasSnapshot,
   type CanvasSummary,
   type ChangeRecord,
   type ChangesResponse,
   type ExElement,
 } from '../shared/protocol.js';
+import { DEFAULT_SEARCH_LIMIT, MAX_SEARCH_LIMIT, matchTerms, searchTerms, textLines, type Match } from './search.js';
 
 export class ValidationError extends Error {
   constructor(message: string, readonly status = 400) {
@@ -126,7 +128,7 @@ function validateFiles(files: unknown, now: number): BinaryFile[] {
   });
 }
 
-function referencedFileIds(elements: Iterable<ExElement>): Set<string> {
+export function referencedFileIds(elements: Iterable<ExElement>): Set<string> {
   const ids = new Set<string>();
   for (const el of elements) if (!el.isDeleted && el.type === 'image' && typeof el.fileId === 'string') ids.add(el.fileId);
   return ids;
@@ -161,23 +163,40 @@ export class CanvasStore {
   }
 
   list(): CanvasSummary[] {
-    const summaries = new Map<string, CanvasSummary>();
-    for (const c of this.canvases.values()) summaries.set(c.id, this.summary(c));
+    return [...this.everyCanvas()].map(({ summary }) => summary).sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
+  /**
+   * Non-empty boards whose title, id, folder name or text contain every word of the query (all when empty):
+   * those of `workspace` first, then by how many words the title matches, then the most recently changed.
+   */
+  search(query: string, workspace?: string, limit = DEFAULT_SEARCH_LIMIT): CanvasSearchHit[] {
+    const terms = searchTerms(query);
+    const hits: Array<Match & { summary: CanvasSummary; here: boolean }> = [];
+    for (const { summary, elements } of this.everyCanvas()) {
+      if (!summary.elementCount) continue;
+      const match = matchTerms(terms, { id: summary.id, name: summary.title, workspace: summary.workspace, lines: textLines(elements) });
+      if (match) hits.push({ ...match, summary, here: !!workspace && summary.workspace === workspace });
+    }
+    hits.sort((a, b) => Number(b.here) - Number(a.here) || b.nameHits - a.nameHits || b.summary.updatedAt - a.summary.updatedAt);
+    return hits.slice(0, Math.max(1, Math.min(limit, MAX_SEARCH_LIMIT))).map((h) => ({ ...h.summary, ...(h.snippet ? { snippet: h.snippet } : {}) }));
+  }
+
+  /** Every board, loaded ones from memory and the rest from disk, without loading them. */
+  private *everyCanvas(): Generator<{ summary: CanvasSummary; elements: Iterable<ExElement> }> {
+    const seen = new Set<string>();
+    for (const c of this.canvases.values()) {
+      seen.add(c.id);
+      yield { summary: this.summary(c), elements: c.elements.values() };
+    }
     for (const name of readdirSync(this.dir)) {
       const id = name.endsWith('.json') ? name.slice(0, -5) : '';
-      if (!CANVAS_ID_PATTERN.test(id) || summaries.has(id)) continue;
+      if (!CANVAS_ID_PATTERN.test(id) || seen.has(id)) continue;
       const data = this.readFile(id);
       if (!data) continue;
-      summaries.set(id, {
-        id,
-        title: data.title,
-        elementCount: data.elements.filter((el) => !el.isDeleted).length,
-        updatedAt: data.updatedAt,
-        viewers: 0,
-        ...meta(data),
-      });
+      const summary = { id, title: data.title, elementCount: data.elements.filter((el) => !el.isDeleted).length, updatedAt: data.updatedAt, viewers: 0, ...meta(data) };
+      yield { summary, elements: data.elements };
     }
-    return [...summaries.values()].sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
   has(id: string): boolean {
@@ -273,16 +292,28 @@ export class CanvasStore {
   }
 
   clear(id: string, actor: Actor): ApplyResponse {
+    return this.replace(id, [], actor);
+  }
+
+  /**
+   * Makes `elements` the board's whole scene: every other live element is deleted, and each incoming
+   * one gets a version above anything stored for its id, so it wins over tombstones and old replicas.
+   */
+  replace(id: string, elements: unknown, actor: Actor, files?: unknown): ApplyResponse {
     const c = this.get(id);
-    const live = [...c.elements.values()].filter((el) => !el.isDeleted);
-    if (!live.length) return { rev: c.rev, applied: [], stale: [] };
-    const rev = ++c.rev;
+    const incoming = validateElements(elements);
     const now = this.now();
-    for (const el of live) {
-      c.elements.set(el.id, { ...el, version: el.version + 1, versionNonce: randomInt(2 ** 31 - 1), isDeleted: true, updated: now });
-    }
-    this.record(c, live.map((el) => ({ rev, actor, id: el.id, kind: 'deleted' as const })));
-    return { rev, applied: live.map((el) => el.id), stale: [] };
+    const bump = (el: ExElement, isDeleted: boolean): ExElement => ({
+      ...el,
+      version: Math.max(el.version, c.elements.get(el.id)?.version ?? 0) + 1,
+      versionNonce: randomInt(2 ** 31 - 1),
+      isDeleted,
+      updated: now,
+    });
+    const live = incoming.filter((el) => !el.isDeleted);
+    const keep = new Set(live.map((el) => el.id));
+    const removed = [...c.elements.values()].filter((el) => !el.isDeleted && !keep.has(el.id)).map((el) => bump(el, true));
+    return this.apply(id, [...removed, ...live.map((el) => bump(el, false))], actor, files);
   }
 
   changes(id: string, since: number): ChangesResponse {

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { LinkStatus } from './connection';
+import { Icon } from './Icon';
 
 interface Props {
   status: LinkStatus;
@@ -13,11 +14,6 @@ interface Props {
 const LABELS: Record<LinkStatus, string> = { connecting: 'connecting…', live: 'live', offline: 'reconnecting…' };
 const TOAST_MS = 2200;
 
-const Icon = ({ d }: { d: string }) => (
-  <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d={d} />
-  </svg>
-);
 const EYE = 'M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12zm10 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6z';
 const CROSSHAIR = 'M12 2v4M12 18v4M2 12h4M18 12h4M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z';
 const NOTE = 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z';

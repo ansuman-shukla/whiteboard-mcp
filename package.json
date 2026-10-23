@@ -1,5 +1,5 @@
 {
-  "name": "whiteboard-mcp",
+  "name": "@ansuman-shukla/whiteboard-mcp",
   "version": "0.1.0",
   "description": "A live whiteboard your coding agent draws on to explain things, side by side with you. MCP server and CLI with a hand-drawn Excalidraw canvas.",
   "type": "module",
@@ -16,6 +16,7 @@
     "build": "npm run build:frontend && npm run build:server",
     "build:frontend": "vite build",
     "build:server": "tsc -p tsconfig.json && node -e \"require('fs').chmodSync('dist/cli.js',0o755)\"",
+    "build:vscode": "node scripts/build-vsix.mjs",
     "dev": "vite",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p frontend/tsconfig.json --noEmit",
     "test": "vitest run",
@@ -58,6 +59,9 @@
     "opencode"
   ],
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "author": "Ansuman Shukla",
   "repository": {
     "type": "git",

@@ -14,6 +14,7 @@ html[data-theme='dark'] {
 }
 
 .xl-chrome--footer {
+  position: relative;
   flex: 1;
   display: flex;
   justify-content: center;
@@ -125,12 +126,19 @@ html[data-theme='dark'] {
   right: 0;
   transform: none;
 }
+.xl-save {
+  pointer-events: auto;
+  font-family: var(--ui-font, system-ui, sans-serif);
+}
 .xl-note textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+.xl-note textarea,
+.xl-note input {
   display: block;
   width: 100%;
-  min-height: 72px;
   box-sizing: border-box;
-  resize: vertical;
   padding: 6px 8px;
   border: 1px solid var(--default-border-color, #ddd);
   border-radius: 6px;
@@ -138,7 +146,8 @@ html[data-theme='dark'] {
   color: var(--text-primary-color, inherit);
   font: 13px/1.4 var(--ui-font, system-ui, sans-serif);
 }
-.xl-note textarea:focus {
+.xl-note textarea:focus,
+.xl-note input:focus {
   outline: none;
   border-color: var(--color-primary, #6965db);
 }

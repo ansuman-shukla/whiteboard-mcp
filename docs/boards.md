@@ -1,4 +1,4 @@
-# Boards: scope and where they appear
+# Boards: scope, finding, saving and where they appear
 
 ## One board per chat
 
@@ -10,8 +10,39 @@ workspace folder ("space")
 ```
 
 - **One board per chat**, created on its first drawing and kept in `~/.whiteboard-mcp/canvases/`. Closing the chat or restarting keeps it.
-- **Boards belong to the workspace folder** (the agent's MCP root, else its working directory). Chats in the same folder can read and draw on each other's boards; other folders don't see them.
+- **Boards are filed by workspace folder** (the agent's MCP root, else its working directory). The list a chat sees is this folder's boards; chats in the same folder can read and draw on each other's boards.
 - **Another chat's board is only used when asked**: `canvas_open {"board":"<title or id>"}`, and `{"board":"own"}` goes back.
+
+## Finding a board from any folder
+
+Asking by name or id finds a board in **any** folder, this one first:
+
+```
+canvas_open {"board":"<title or id>"}
+   1. this folder's boards              → found? open it
+   2. every folder, newest first        → one match: open it, saying which folder it came from
+                                           several: list their ids, open nothing
+                                           none: list the closest boards and saved copies to pick from
+```
+
+That matters for apps that start every task in a new folder (Codex desktop uses `~/Documents/Codex/<date>/<task>`): a later task still opens the board an earlier one made. `canvas_search {"query":"<words>"}` finds boards by the text on them too, and `whiteboard-mcp url <board>` uses the same lookup.
+
+## Saved boards
+
+Live boards belong to one chat and change as you both draw. When something is worth keeping, save it:
+
+```
+chat A (any harness)                     your library (~/.whiteboard-mcp/saved/)      chat B, days later, any workspace
+  Excalidraw menu → Save to library  ─┐
+  or Cmd/Ctrl+S                       ├─▶  "Auth flow"  (frozen copy)  ◀── canvas_search {"query":"auth"}
+  or the agent: canvas_save           ─┘                               ──▶ canvas_open {"saved":"auth-flow-1a2b3c"}
+                                                                              (a copy lands in chat B's own board)
+```
+
+- **A save is a frozen copy.** Later edits or clears on the live board don't touch it. Saving the same name again (in the same workspace) overwrites that entry.
+- **Search covers every workspace**, this workspace's boards first, and lists other chats' live boards next to saved copies. It matches every word against the name, the id, the folder name and the text on the board.
+- **Loading copies** the saved drawing into the chat's own board and leaves the saved copy unchanged. If the board already has a drawing the agent must pass `fresh:true` to replace it.
+- It's the daemon that stores everything, so it works the same from Claude Code, Codex, Devin, the CLI or anything else.
 
 ## How a chat is identified
 
@@ -37,12 +68,12 @@ Set one of the env vars if your agent restarts its MCP servers within a chat and
 
 ```
 canvas_open / canvas_draw while nobody is watching
-   ├─ an editor panel host is connected (e.g. a VS Code-style extension) → shown beside the chat
+   ├─ an editor panel host is connected (the IDE panel extension, Devin Switch in Devin Desktop) → shown beside the chat
    ├─ agent runs inside an editor without a panel host → nothing opens; the agent tells you how to open it
    └─ elsewhere (terminal agents) → your browser
 ```
 
-Change the browser fallback with [`WHITEBOARD_OPEN`](configuration.md).
+In VS Code, Cursor or Windsurf, install the [IDE panel extension](ide-panel.md) to get the panel. Change the browser fallback with [`WHITEBOARD_OPEN`](configuration.md).
 
 ### Panel hosts and window routing
 
@@ -51,4 +82,4 @@ Panel hosts connect to the daemon at `/ws/host` (token-protected) and say which 
 1. the host whose `hostId` matches the agent's `WHITEBOARD_HOST_ID` (else Windsurf/Devin Desktop's `WINDSURF_EXT_HOST_PID`),
 2. otherwise a window showing the board's workspace (focused first) that doesn't announce a different `hostId`.
 
-It never opens in an unrelated window, where it would hide that window's own board. Hosts show each board in its own tab and never retarget another board's tab, so chats never replace each other's boards. The agent never gets the board link while a panel can show it, and it is told not to open board links in browser or preview tools.
+It never opens in an unrelated window, where it would hide that window's own board. The [IDE panel extension](ide-panel.md) sets `WHITEBOARD_HOST_ID` for the agents each window starts. Hosts show each board in its own tab and never retarget another board's tab, so chats never replace each other's boards. The agent never gets the board link while a panel can show it, and it is told not to open board links in browser or preview tools.

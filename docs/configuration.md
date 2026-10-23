@@ -9,7 +9,7 @@ All settings are environment variables on the MCP server (or CLI) process.
 | `WHITEBOARD_CHAT_COMMAND` | | Command printing the current chat id (run once, without a shell), for hosts that restart MCP servers within a chat |
 | `WHITEBOARD_HOST_ID` | `WINDSURF_EXT_HOST_PID` | The `hostId` of the editor window (panel host) this agent runs in, so its boards open there |
 | `WHITEBOARD_PORT` | `47428` | Daemon port (falls back to a free port if taken by something else) |
-| `WHITEBOARD_HOME` | `~/.whiteboard-mcp` | State: boards, token, daemon info, logs |
+| `WHITEBOARD_HOME` | `~/.whiteboard-mcp` | State: boards, saved boards, token, daemon info, logs |
 | `WHITEBOARD_IDLE_MS` | `1800000` | Daemon exits after this long with no viewers or requests (`0` = never) |
 | `WHITEBOARD_WORKSPACE` | MCP root or cwd | Override the workspace used to pick the default board |
 | `WHITEBOARD_EXPORT_DIR` | | Extra directory `canvas_export` may write to (besides the workspace and temp) |
@@ -24,7 +24,7 @@ whiteboard-mcp [mcp]                 MCP stdio server (default)
 whiteboard-mcp call <tool> [json|-]  run a tool once (JSON args inline or on stdin)
 whiteboard-mcp tools [--json]        list tools and their input schemas
 whiteboard-mcp open                  show your board (panel or browser)
-whiteboard-mcp url [board]           print a board's viewer URL (yours, or a workspace board by id/title)
+whiteboard-mcp url [board]           print a board's viewer URL (yours, or any board by id/title)
 whiteboard-mcp status                show the canvas daemon and its boards
 whiteboard-mcp stop                  stop the canvas daemon
 whiteboard-mcp serve                 run the canvas daemon in the foreground

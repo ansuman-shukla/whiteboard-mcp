@@ -54,6 +54,8 @@ This writes `~/.config/devin/mcp_config.json`; `--scope project` writes `.devin/
 { "servers": { "whiteboard": { "type": "stdio", "command": "node", "args": ["/abs/path/dist/cli.js"] } } }
 ```
 
+In VS Code, Cursor and Windsurf, install the [IDE panel extension](ide-panel.md) to see boards in a tab beside the chat, for the editor's own agent and for agents in its terminal.
+
 ## Agents without MCP (pi and others)
 
 Copy `skills/whiteboard-explainer/` into the agent's skills folder and put `whiteboard-mcp` on your PATH (`npm link` in the clone). The agent then runs the same tools from the shell:
