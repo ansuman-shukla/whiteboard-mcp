@@ -85,8 +85,8 @@ function features(t) {
 
 function steps(t) {
   const items = [
-    ['Clone and build', 'git clone … && npm run build'],
-    ['Add it to your agent', 'claude mcp add whiteboard …'],
+    ['Add it to your agent', 'npx -y @ansuman-shukla/…'],
+    ['Start a new chat', 'it picks up the tools'],
     ['Ask for a drawing', '"Draw this repo for me"'],
   ];
   const label = `Get started in a minute: ${items.map(([h, s], i) => `${i + 1}. ${h} (${s})`).join(' ')}`;
@@ -113,7 +113,7 @@ function compare(t) {
     ['Works in any MCP client', 'yes', 'Plus a plain CLI', 'no', 'Only hosts with MCP Apps'],
     ['Mermaid to hand-drawn', 'yes', '', 'no', ''],
     ['Animated camera moves', 'no', '', 'yes', ''],
-    ['Zero install (hosted URL)', 'no', 'Clone and build', 'yes', ''],
+    ['Zero install (hosted URL)', 'no', 'One npx line, runs locally', 'yes', ''],
   ];
   const label = `whiteboard-mcp vs Excalidraw MCP. ${rows.map(([f, a, an, b, bn]) => `${f}: whiteboard-mcp ${a}${an ? ` (${an})` : ''}, Excalidraw MCP ${b}${bn ? ` (${bn})` : ''}.`).join(' ')}`;
   const mark = (x, y, v) => {
