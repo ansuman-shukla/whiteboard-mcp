@@ -1,0 +1,21 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.ansuman-shukla/whiteboard-mcp",
+  "title": "Whiteboard",
+  "description": "Local Excalidraw whiteboard your coding agent draws on live, and sees what you draw back.",
+  "repository": {
+    "url": "https://github.com/ansuman-shukla/whiteboard-mcp",
+    "source": "github"
+  },
+  "version": "0.1.1",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@ansuman-shukla/whiteboard-mcp",
+      "version": "0.1.1",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

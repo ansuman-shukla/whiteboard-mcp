@@ -14,7 +14,7 @@
 | **Mermaid** | `canvas_mermaid` turns Mermaid into hand-drawn elements | Not available |
 | **Export** | `.excalidraw` or `.png` written into your project | Upload to an excalidraw.com share link |
 | **Where it runs** | Local daemon on 127.0.0.1, token on every request, fonts bundled | Hosted server at `mcp.excalidraw.com` (recommended) or local |
-| **Setup** | Clone, build, add to your agent | Paste one URL, nothing to install |
+| **Setup** | One `npx` line in your agent, runs locally | Paste one URL, nothing to install |
 
 **Pick Excalidraw MCP** for a quick one-off diagram inside Claude or ChatGPT on the web: zero install and smooth camera animation.
 

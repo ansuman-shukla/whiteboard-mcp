@@ -75,12 +75,13 @@ function features(t) {
     ['Tiny', ['One runtime dependency and about', '7 KB of tool schema per turn.'], VIOLET, ICONS.feather],
   ];
   const label = `Why whiteboard-mcp: ${items.map(([h, d]) => `${h}: ${d.join(' ')}`).join(' ')}`;
-  const tw = 456, th = 300, gx = 32, x0 = 80, y0 = 170;
+  const tw = 456, th = 300, gx = 32, x0 = 80, y0 = 64;
+  const height = y0 * 2 + th * 2 + gx;
   const tiles = items.map(([h, d, c, ic], i) => {
     const x = x0 + (i % 3) * (tw + gx), y = y0 + Math.floor(i / 3) * (th + gx);
     return [tile(x, y, tw, th, t), badge(x + 40, y + 40, c, ic), text(x + 40, y + 170, h, { size: 34, cls: 'serif', fill: t.head, weight: 700 }), lines(x + 40, y + 218, d, { size: 24, fill: t.body }, 35)].join('\n');
   });
-  return svg(850, label, [card(850, t), text(80, 120, 'Why whiteboard-mcp', { size: 60, cls: 'serif', fill: t.head, weight: 700 }), ...tiles].join('\n'));
+  return svg(height, label, [card(height, t), ...tiles].join('\n'));
 }
 
 function steps(t) {
@@ -90,7 +91,8 @@ function steps(t) {
     ['Ask for a drawing', '"Draw this repo for me"'],
   ];
   const label = `Get started in a minute: ${items.map(([h, s], i) => `${i + 1}. ${h} (${s})`).join(' ')}`;
-  const tw = 456, th = 300, gx = 32, x0 = 80, y0 = 170;
+  const tw = 456, th = 300, gx = 32, x0 = 80, y0 = 64;
+  const height = y0 * 2 + th;
   const tiles = items.map(([h, s], i) => {
     const x = x0 + i * (tw + gx), y = y0;
     return [
@@ -101,7 +103,7 @@ function steps(t) {
       text(x + 40, y + 250, h, { size: 32, fill: t.head, weight: 700 }),
     ].join('\n');
   });
-  return svg(540, label, [card(540, t), text(80, 120, 'Get started in a minute', { size: 60, cls: 'serif', fill: t.head, weight: 700 }), ...tiles].join('\n'));
+  return svg(height, label, [card(height, t), ...tiles].join('\n'));
 }
 
 function compare(t) {
@@ -121,13 +123,12 @@ function compare(t) {
     if (v === 'part') return `<g transform="translate(${x} ${y})"><circle r="17" fill="none" stroke="${ORANGE}" stroke-width="3.2"/><path d="M0 -17a17 17 0 0 1 0 34z" fill="${ORANGE}"/></g>`;
     return `<g transform="translate(${x} ${y})"><circle r="17" fill="none" stroke="${t.no}" stroke-width="3.2"/><path d="M-7 0h14" stroke="${t.no}" stroke-width="3.6" stroke-linecap="round"/></g>`;
   };
-  const top = 230, rh = 84, cA = 640, cB = 1120;
+  const top = 124, rh = 84, cA = 640, cB = 1120;
   const h = top + rows.length * rh + 60;
   const body = [
     card(h, t),
-    text(80, 120, 'whiteboard-mcp vs Excalidraw MCP', { size: 60, cls: 'serif', fill: t.head, weight: 700 }),
-    text(cA, 196, 'whiteboard-mcp', { size: 26, fill: t.head, weight: 700 }),
-    text(cB, 196, 'Excalidraw MCP', { size: 26, fill: t.faint, weight: 700 }),
+    text(cA, 90, 'whiteboard-mcp', { size: 26, fill: t.head, weight: 700 }),
+    text(cB, 90, 'Excalidraw MCP', { size: 26, fill: t.faint, weight: 700 }),
     ...rows.map(([f, a, an, b, bn], i) => {
       const y = top + i * rh, mid = y + rh / 2;
       return [
@@ -143,8 +144,43 @@ function compare(t) {
   return svg(h, label, body.join('\n'));
 }
 
+// 1280x640 link preview (GitHub social preview, og:image). Link previews need a PNG:
+// npx playwright screenshot --viewport-size=1280,640 file://$PWD/docs/media/readme/social.svg docs/media/social-preview.png
+function social(t) {
+  const w = 1280, h = 640;
+  const label = 'whiteboard-mcp: a local Excalidraw whiteboard MCP server. Your coding agent draws, you draw back.';
+  const chips = ['Claude Code', 'Codex', 'Cursor', 'Gemini CLI', 'VS Code', 'Windsurf'];
+  let x = 96;
+  const chipEls = chips.map((c) => {
+    const cw = c.length * 14 + 44;
+    const el = `<rect x="${x}" y="488" width="${cw}" height="52" rx="26" fill="${t.tile}" stroke="${t.line}" stroke-width="2"/>${text(x + cw / 2, 522, c, { size: 24, fill: t.body, anchor: 'middle' })}`;
+    x += cw + 14;
+    return el;
+  });
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(label)}">\n<title>${esc(label)}</title>\n${STYLE}\n${[
+    `<rect width="${w}" height="${h}" fill="${t.card}"/>`,
+    logo(96, 96, 112),
+    text(236, 176, 'whiteboard-mcp', { size: 80, cls: 'serif', fill: t.head, weight: 700 }),
+    text(96, 300, 'A live whiteboard your coding agent', { size: 52, fill: t.head, weight: 600 }),
+    text(96, 366, 'draws on. You draw back.', { size: 52, fill: t.faint, weight: 600 }),
+    text(96, 440, 'Local, offline Excalidraw MCP server · free and open source', { size: 30, fill: t.body }),
+    ...chipEls,
+    `<g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="4">
+  <path d="M992 84c40-2 118-1 164 1 3 22 2 52-1 74-46 2-122 2-163 0-2-24-2-52 0-75z" stroke="${BLUE}" fill="${BLUE}" fill-opacity="0.12"/>
+  <path d="M1012 286c44-1 120 0 162 2 2 24 2 50 0 72-44 3-118 2-162 0-3-22-3-50 0-74z" stroke="${VIOLET}" fill="${VIOLET}" fill-opacity="0.12"/>
+  <path d="M1072 162c-6 40 2 82 16 120" stroke="${t.head}"/>
+  <path d="M1074 266l14 18 10-22" stroke="${t.head}"/>
+  <path d="M1220 322c4-46-60-70-126-66-70 4-114 34-110 72 4 40 70 60 136 54 58-6 98-28 100-60" stroke="${ORANGE}" stroke-width="5"/>
+</g>`,
+    text(1074, 133, 'API', { size: 30, fill: t.head, weight: 600, anchor: 'middle' }),
+    text(1093, 334, 'Queue', { size: 30, fill: t.head, weight: 600, anchor: 'middle' }),
+    text(1210, 420, 'what if it fails?', { size: 24, fill: ORANGE, weight: 600, anchor: 'end' }),
+  ].join('\n')}\n</svg>\n`;
+}
+
 mkdirSync(OUT, { recursive: true });
 for (const [name, render] of Object.entries({ hero, features, steps, compare })) {
   for (const [theme, t] of Object.entries(THEMES)) writeFileSync(join(OUT, `${name}-${theme}.svg`), render(t));
 }
-console.log(`wrote 8 cards to ${OUT}`);
+writeFileSync(join(OUT, 'social.svg'), social(THEMES.light));
+console.log(`wrote 9 cards to ${OUT}`);
