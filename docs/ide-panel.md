@@ -30,7 +30,7 @@ code --install-extension build/whiteboard-mcp-0.1.0.vsix
 
 Cursor and Windsurf have the same flag (`cursor --install-extension …`, `windsurf --install-extension …`), or use **Extensions › … › Install from VSIX…** in any of them.
 
-Then **open a new terminal** (or restart agents already running): only processes started after the extension activated know which window they are in. Nothing else to configure; add whiteboard-mcp to your agent as usual ([client setup](../README.md#client-setup)). For VS Code's own agent:
+Then **open a new terminal** (or restart agents already running): only processes started after the extension activated know which window they are in. Nothing else to configure; add whiteboard-mcp to your agent as usual ([client setup](clients.md)). For VS Code's own agent:
 
 ```jsonc
 // .vscode/mcp.json, or "MCP: Open User Configuration"
