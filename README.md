@@ -1,7 +1,7 @@
 <a href="#quick-start">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/media/readme/hero-dark.svg">
-    <img src="docs/media/readme/hero-light.svg" width="100%" alt="whiteboard-mcp: a live whiteboard your coding agent draws on, and you draw back. Works with Claude Code, Codex, Cursor, Gemini CLI, VS Code and any MCP client.">
+    <img src="docs/media/readme/hero-light.svg" width="100%" alt="whiteboard-mcp: a live whiteboard your coding agent draws on. You draw back.">
   </picture>
 </a>
 
