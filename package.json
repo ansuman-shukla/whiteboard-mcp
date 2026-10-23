@@ -1,7 +1,7 @@
 {
   "name": "@ansuman-shukla/whiteboard-mcp",
   "version": "0.1.0",
-  "description": "A live whiteboard your coding agent draws on to explain things, side by side with you. MCP server and CLI with a hand-drawn Excalidraw canvas.",
+  "description": "Local, offline Excalidraw whiteboard MCP server: your coding agent (Claude Code, Codex, Cursor, Gemini CLI, VS Code) draws diagrams live beside the chat and sees what you draw back. Also a CLI.",
   "type": "module",
   "bin": {
     "whiteboard-mcp": "dist/cli.js"
@@ -51,13 +51,34 @@
   "keywords": [
     "mcp",
     "mcp-server",
+    "model-context-protocol",
     "excalidraw",
+    "excalidraw-mcp",
     "whiteboard",
+    "whiteboard-mcp",
+    "canvas",
+    "diagram",
     "diagrams",
+    "architecture-diagram",
+    "flowchart",
+    "mermaid",
+    "drawing",
+    "visualization",
+    "offline",
+    "local-first",
     "coding-agent",
+    "ai-agent",
+    "llm",
+    "claude",
     "claude-code",
+    "claude-desktop",
     "codex",
-    "opencode"
+    "cursor",
+    "gemini-cli",
+    "vscode",
+    "windsurf",
+    "opencode",
+    "devin"
   ],
   "license": "MIT",
   "publishConfig": {
