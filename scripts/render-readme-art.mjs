@@ -178,9 +178,14 @@ function social(t) {
   ].join('\n')}\n</svg>\n`;
 }
 
+// 400x400 icon for MCP directories. PNG:
+// screenshot docs/media/readme/logo.svg at 400x400 with a transparent background (Playwright omitBackground) to docs/media/logo-400.png
+const icon = () => `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400" role="img" aria-label="whiteboard-mcp logo">\n${logo(0, 0, 400)}\n</svg>\n`;
+
 mkdirSync(OUT, { recursive: true });
+writeFileSync(join(OUT, 'logo.svg'), icon());
 for (const [name, render] of Object.entries({ hero, features, steps, compare })) {
   for (const [theme, t] of Object.entries(THEMES)) writeFileSync(join(OUT, `${name}-${theme}.svg`), render(t));
 }
 writeFileSync(join(OUT, 'social.svg'), social(THEMES.light));
-console.log(`wrote 9 cards to ${OUT}`);
+console.log(`wrote 10 files to ${OUT}`);
