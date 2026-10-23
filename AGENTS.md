@@ -26,8 +26,9 @@ agent ──stdio JSON-RPC──▶ whiteboard-mcp (MCP server, one per agent se
 - `src/shared/describe.ts`: compact text description of a scene and of changes since a revision.
 - `src/mcp/*`, `src/cli.ts`: minimal stdio JSON-RPC MCP server (no SDK at runtime), tools, CLI mode, viewer opening.
 - Scope: one board per chat (`chatBoard(workspace, chat)`), boards tagged with `workspace` + `chat` and listed per workspace; looked up by name in any folder, this one first (`src/mcp/find.ts`, `GET /api/search` for text), because some harnesses (Codex desktop) start every task in a new folder. Chat id: tool-call `_meta` > `WHITEBOARD_CHAT_ID` > `WHITEBOARD_CHAT_COMMAND` > per process. Tool calls get a `ChatContext`, never shared mutable chat state, because one process may serve several chats.
-- Showing: `ChatContext.reveal` asks a panel host first, hinting the chat's window (`hostHint()`: `WHITEBOARD_HOST_ID`, else `WINDSURF_EXT_HOST_PID`, which equals the Desktop extension host's pid); without one it opens a browser only outside editors (or per `WHITEBOARD_OPEN`). Never put the board URL in a result when a panel showed it, and never route a board to a window that isn't the chat's: it would hide that window's board.
+- Showing: `ChatContext.reveal` asks a panel host first, hinting the chat's window (`hostHint()`: `WHITEBOARD_HOST_ID`, else `WINDSURF_EXT_HOST_PID`, which equals the Desktop extension host's pid); without one it opens a browser only outside editors (or per `WHITEBOARD_OPEN`). Never put the board URL in a result when a panel showed it, and never route a board to a window that isn't the chat's: it would hide that window's board. A freshly started daemon lets a hinted show wait up to 5 s (`hostGraceMs`) for its window's host, which only polls for daemon.json every 3 s.
 - `frontend/`: React + Excalidraw viewer; live bidirectional sync using Excalidraw's version/versionNonce reconciliation.
+- `vscode/`: the IDE panel extension (plain CommonJS, no dependencies, VS Code 1.101+ for the global WebSocket): `host.js` (panel host: daemon.json + token, hello with `hostId` = extension host pid, reconnect), `tabs.js` (one webview tab per board, never retarget another board's tab), `window.js` (sets `WHITEBOARD_HOST_ID` for integrated terminals via the environment variable collection, non-persistent, and in the extension host's own env, which VS Code's MCP servers and agent extensions inherit). `scripts/build-vsix.mjs` zips it into a .vsix without vsce. Docs: `docs/ide-panel.md`.
 
 ## Rules
 
@@ -47,6 +48,8 @@ npm test               # vitest unit + integration (integration builds dist/ fir
 npm run build          # frontend (vite) + server (tsc)
 npm run test:e2e       # Playwright against the built daemon + frontend
 npm run check          # all of the above
+npm run build:vscode   # build/whiteboard-mcp-<version>.vsix
+npm run build && WHITEBOARD_TEST_VSCODE=1 npx vitest run tests/vscode   # real VS Code windows (opt-in, needs a display)
 ```
 
 ## Gotchas
@@ -54,3 +57,5 @@ npm run check          # all of the above
 - e2e uses port 47500; a crashed run can leave `tests/e2e/serve.mjs` listening there. Kill it before rerunning.
 - Click Excalidraw toolbar tools via their `label`, not the hidden radio input.
 - `npm run test:soak` asserts flat heap and zero leaked connections; run it after touching daemon/store lifecycle code.
+- Real VS Code tests: keep `--user-data-dir` under `/tmp` (Electron's IPC socket path must stay below 104 characters), strip inherited `VSCODE_*`/`ELECTRON_*`/`WINDSURF_*`/`TERM_PROGRAM` variables (`ELECTRON_RUN_AS_NODE=1` turns VS Code into plain Node), and set `WHITEBOARD_OPEN=none` so a misrouted board never opens a real browser. VS Code starts user `mcp.json` servers without a trust prompt via `workbench.mcp.startServer` with `{ promptType: 'none' }`, and their tools can be called with `vscode.lm.invokeTool`.
+- MCP roots override `WHITEBOARD_WORKSPACE` for MCP servers; CLI `call`s of one workspace share a chat unless `WHITEBOARD_CHAT_ID` differs.

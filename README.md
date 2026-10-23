@@ -33,6 +33,8 @@ node dist/cli.js open         # opens your workspace board in the browser
 
 Then add the MCP server to your agent (below) and ask it to explain something "on the canvas".
 
+Using VS Code, Cursor or Windsurf? Install the [IDE panel extension](docs/ide-panel.md) to get boards in an editor tab beside the chat instead of the browser.
+
 Once published to npm, `npx -y whiteboard-mcp` replaces `node /abs/path/dist/cli.js` in every config below.
 
 ## Client setup
@@ -146,12 +148,12 @@ chat A (any harness)                     your library (~/.whiteboard-mcp/saved/)
 
 ```
 canvas_open / canvas_draw while nobody is watching
-   ├─ an editor panel host is connected (e.g. a VS Code-style extension) → shown beside the chat
+   ├─ an editor panel host is connected (the IDE panel extension, Devin Switch in Devin Desktop) → shown beside the chat
    ├─ agent runs inside an editor without a panel host → nothing opens; the agent tells you how to open it
    └─ elsewhere (terminal agents) → your browser
 ```
 
-Panel hosts connect to the daemon at `/ws/host` (token-protected) and say which folders they show, plus an optional `hostId` naming their window. The board opens in the chat's own window: the host whose `hostId` matches the agent's `WHITEBOARD_HOST_ID` (else Windsurf/Devin Desktop's `WINDSURF_EXT_HOST_PID`), otherwise a window showing the board's workspace (focused first) that doesn't announce a different `hostId`. It never opens in an unrelated window, where it would hide that window's own board. Hosts show each board in its own tab and never retarget another board's tab, so chats never replace each other's boards. The agent never gets the board link while a panel can show it, and it is told not to open board links in browser or preview tools.
+Panel hosts connect to the daemon at `/ws/host` (token-protected) and say which folders they show, plus an optional `hostId` naming their window. The board opens in the chat's own window: the host whose `hostId` matches the agent's `WHITEBOARD_HOST_ID` (else Windsurf/Devin Desktop's `WINDSURF_EXT_HOST_PID`), otherwise a window showing the board's workspace (focused first) that doesn't announce a different `hostId`. It never opens in an unrelated window, where it would hide that window's own board. The [IDE panel extension](docs/ide-panel.md) sets `WHITEBOARD_HOST_ID` for the agents each window starts. Hosts show each board in its own tab and never retarget another board's tab, so chats never replace each other's boards. The agent never gets the board link while a panel can show it, and it is told not to open board links in browser or preview tools.
 
 ## Configuration
 
@@ -185,6 +187,7 @@ npm run typecheck   # server + viewer
 npm test            # unit + integration (builds dist/ first)
 npm run build       # viewer (Vite) + server (tsc)
 npm run test:e2e    # Playwright: real daemon + viewer in Chromium
+npm run build:vscode  # IDE panel extension (.vsix), see docs/ide-panel.md
 npm run check       # everything
 ```
 

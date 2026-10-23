@@ -182,7 +182,7 @@ export type ServerHostMessage = { t: 'show'; reqId: string; canvasId: string; ti
 
 export interface ShowRequest {
   workspace?: string;
-  /** The `hostId` of the window the agent runs in, when known. */
+  /** The `hostId` of the window the agent runs in, when known. A daemon that just started waits a few seconds for that window's host to connect. */
   host?: string;
 }
 
