@@ -214,3 +214,35 @@ html[data-theme='dark'] {
     animation: none;
   }
 }
+
+/* Inline in a chat (MCP Apps): the host sizes the frame from size-changed; the page sets its own height. */
+html[data-inline='1'] body,
+html[data-inline='1'] #root {
+  height: 100%;
+}
+.xl-expand {
+  margin-left: 6px;
+  padding: 0;
+  width: 32px;
+  justify-content: center;
+  border: 0;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.xl-expand:hover {
+  color: var(--color-primary, #6965db);
+}
+.xl-inline-msg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 16px;
+  box-sizing: border-box;
+  font: 14px system-ui, sans-serif;
+  color: #7a7a7a;
+  text-align: center;
+}
+.xl-inline-msg--error {
+  color: #c92a2a;
+}

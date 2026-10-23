@@ -5,6 +5,7 @@ import { CanvasClient, CanvasError } from '../canvas/client.js';
 import { describeChanges, describeScene } from '../shared/describe.js';
 import { ELEMENT_SPEC_FIELDS, buildElements, deleteElements, type ElementSpec } from '../shared/elements.js';
 import type { CanvasSummary, ChangesResponse, ExElement, MermaidResult, SavedSummary, ScreenshotResult } from '../shared/protocol.js';
+import { BOARD_TOOL_META } from './apps.js';
 import { closestBoards, findBoard, whereFrom } from './find.js';
 import { GUIDE } from './guide.js';
 import { openViewer } from './open.js';
@@ -14,6 +15,7 @@ import type { CanvasRef, Session } from './session.js';
 export type Content = { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string };
 export interface ToolResult {
   content: Content[];
+  structuredContent?: Record<string, unknown>;
   isError?: boolean;
 }
 type Args = Record<string, unknown>;
@@ -25,6 +27,7 @@ export interface Tool {
   run(args: Args, ctx: ChatContext): Promise<ToolResult | string>;
   /** canvas_read/canvas_guide don't get the "human changed things" footer. */
   quiet?: boolean;
+  _meta?: Record<string, unknown>;
 }
 
 export class ToolError extends Error {}
@@ -38,6 +41,10 @@ export class ToolContext {
   private client?: Promise<CanvasClient>;
   /** Boards already created this process, with their current titles. */
   readonly titles = new Map<string, string>();
+  /** The client renders MCP Apps: canvas_open shows the board inline in the chat, so no browser or panel is opened. */
+  apps = false;
+  /** When canvas_open last showed each board inline; its view needs a moment to connect. */
+  readonly shownInline = new Map<string, number>();
 
   constructor(readonly session: Session, private readonly connectOpts: Parameters<typeof CanvasClient.connect>[0] = {}) {}
 
@@ -74,6 +81,12 @@ export function hostHint(env: NodeJS.ProcessEnv = process.env): string | undefin
   return env.WHITEBOARD_HOST_ID?.trim() || env.WINDSURF_EXT_HOST_PID?.trim() || undefined;
 }
 const SHOW_WAIT_MS = 8000;
+const INLINE_GRACE_MS = 30_000;
+/** WHITEBOARD_OPEN set to a real opener (browser, a command) wins over the inline board. */
+const explicitOpener = (): boolean => {
+  const mode = process.env.WHITEBOARD_OPEN?.trim();
+  return !!mode && mode !== 'auto' && mode !== 'none';
+};
 
 export class ChatContext {
   constructor(private readonly base: ToolContext, readonly chat: string) {}
@@ -109,7 +122,21 @@ export class ChatContext {
     return viewers > 0 ? '' : (await this.show(client, ref)).note;
   }
 
+  /** canvas_open in an MCP Apps client: the host renders the board inline from the tool result. */
+  showInline(ref: CanvasRef): boolean {
+    if (!this.base.apps || explicitOpener()) return false;
+    const now = Date.now();
+    for (const [id, at] of this.base.shownInline) if (now - at > INLINE_GRACE_MS) this.base.shownInline.delete(id);
+    this.base.shownInline.set(ref.id, now);
+    return true;
+  }
+
   private async show(client: CanvasClient, ref: CanvasRef): Promise<{ launched: boolean; note: string }> {
+    if (this.base.apps && !explicitOpener()) {
+      // Just shown inline: its view is still connecting.
+      if (Date.now() - (this.base.shownInline.get(ref.id) ?? 0) < INLINE_GRACE_MS) return { launched: true, note: '' };
+      return { launched: false, note: 'Nobody is watching the board: call canvas_open to show it inline in the chat.' };
+    }
     if (await client.show(ref.id, this.session.workspace, hostHint()).catch(() => false)) return { launched: true, note: 'Shown to the human beside the chat.' };
     const url = client.viewerUrl(ref.id);
     const mode = process.env.WHITEBOARD_OPEN?.trim();
@@ -342,6 +369,7 @@ export const TOOLS: Tool[] = [
   {
     name: 'canvas_open',
     description: "Show this chat's own whiteboard to the human beside the chat. Name it with title. To reuse another chat's drawing (any folder), pass board.",
+    _meta: BOARD_TOOL_META,
     inputSchema: obj({
       title: str("Name this chat's board after the topic, e.g. \"How MCP works\""),
       board: str("Open another chat's board by id or title (this folder first, then any); \"own\" returns to this chat's"),
@@ -379,16 +407,19 @@ export const TOOLS: Tool[] = [
       if (loaded) await client.loadSaved(ref.id, loaded.id);
       else if (args.fresh) await client.clear(ref.id);
       const snap = await client.snapshot(ref.id);
-      const shown = args.open === false ? '' : await ctx.reveal(client, ref, snap.viewers);
+      const inline = args.open !== false && ctx.showInline(ref);
+      const shown = args.open === false ? '' : inline ? 'Shown inline in the chat.' : await ctx.reveal(client, ref, snap.viewers);
       const others = boards.filter((b) => b.id !== ref.id).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 10);
       const mine = ref.id === own.id;
-      return text(
-        `${mine ? "This chat's board" : `Board from another chat${elsewhere ? ` (${elsewhere})` : ''}`}: ${boardName(ref)} [${ref.id}]. ${snap.viewers ? 'The human is watching it.' : shown}`,
+      const summary = text(
+        `${mine ? "This chat's board" : `Board from another chat${elsewhere ? ` (${elsewhere})` : ''}`}: ${boardName(ref)} [${ref.id}]. ${snap.viewers && !inline ? 'The human is watching it.' : shown}`,
         loaded && `Loaded a copy of saved board "${loaded.name}" [${loaded.id}]; the saved copy stays unchanged.`,
         snap.elements.length ? describeScene(snap.elements, { maxElements: 12 }) : 'The board is empty.',
         others.length > 0 && `Other boards in this workspace (open one with board): ${others.map((b) => `${b.title === b.id ? '(untitled)' : b.title} [${b.id}, ${b.elementCount} el]`).join('; ')}`,
         !mine && 'Drawing now changes that board; canvas_open {board:"own"} switches back to this chat\'s board.',
       );
+      // The inline view (MCP Apps) reads which board to show from here.
+      return { content: [{ type: 'text', text: summary }], structuredContent: { board: ref.id, title: ref.title, show: args.open !== false } };
     },
   },
   {
@@ -564,8 +595,9 @@ export function getTool(name: string): Tool | undefined {
   return BY_NAME.get(name);
 }
 
-export function toolList(): Array<Pick<Tool, 'name' | 'description' | 'inputSchema'>> {
-  return TOOLS.map(({ name, description, inputSchema }) => ({ name, description, inputSchema }));
+/** With `apps` (an MCP Apps client), tools carry their UI `_meta`; other clients don't pay for it. */
+export function toolList(apps = false): Array<Pick<Tool, 'name' | 'description' | 'inputSchema' | '_meta'>> {
+  return TOOLS.map(({ name, description, inputSchema, _meta }) => ({ name, description, inputSchema, ...(apps && _meta ? { _meta } : {}) }));
 }
 
 function errorText(err: unknown): string {

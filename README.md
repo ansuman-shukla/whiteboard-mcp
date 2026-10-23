@@ -123,7 +123,7 @@ Yes. Every time it looks, it gets a short list of what you added, moved or delet
 
 ### Which agents and editors does it work with?
 
-Any MCP client: Claude Code, Claude Desktop, OpenAI Codex, Cursor, Gemini CLI, VS Code (Copilot agent mode), Windsurf, Devin, OpenCode and more. Agents without MCP can use the plain `whiteboard-mcp call` CLI. The [IDE panel](docs/ide-panel.md) shows boards in a tab beside the chat in VS Code, Cursor, Windsurf and Devin Desktop; anywhere else they open in your browser.
+Any MCP client: Claude Code, Claude Desktop, OpenAI Codex, Cursor, Gemini CLI, VS Code (Copilot agent mode), Windsurf, Devin, OpenCode and more. Agents without MCP can use the plain `whiteboard-mcp call` CLI. The [IDE panel](docs/ide-panel.md) shows boards in a tab beside the chat in VS Code, Cursor, Windsurf and Devin Desktop; chat apps that support [MCP Apps](docs/inline.md) show them inline in the conversation; anywhere else they open in your browser.
 
 ### Can it turn Mermaid into an Excalidraw diagram, or export it?
 

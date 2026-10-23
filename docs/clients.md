@@ -46,6 +46,8 @@ This writes `~/.config/devin/mcp_config.json`; `--scope project` writes `.devin/
 { "mcpServers": { "whiteboard": { "command": "npx", "args": ["-y", "@ansuman-shukla/whiteboard-mcp"] } } }
 ```
 
+Chat apps that support [MCP Apps](inline.md) show the board inline in the conversation instead of a browser window.
+
 ## VS Code
 
 `.vscode/mcp.json`:

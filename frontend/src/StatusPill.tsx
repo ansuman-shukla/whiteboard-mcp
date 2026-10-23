@@ -96,7 +96,8 @@ export function StatusPill({ status, viewers, follow, onToggleFollow, onNote }: 
           />
           <div className="xl-note-row">
             <span className="xl-hint">⌘/Ctrl + Enter</span>
-            <button type="submit" className="xl-send" disabled={!text.trim()}>
+            {/* A click, not form submission: sandboxed frames without allow-forms (MCP Apps hosts) never submit. */}
+            <button type="button" className="xl-send" disabled={!text.trim()} onClick={submit}>
               Send
             </button>
           </div>

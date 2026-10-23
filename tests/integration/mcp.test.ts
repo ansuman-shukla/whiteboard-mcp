@@ -33,8 +33,12 @@ function freePort(): Promise<number> {
   });
 }
 
-async function connect(opts: { cwd?: string; roots?: string; env?: Record<string, string>; unset?: string[] } = {}): Promise<Client> {
-  const client = new Client({ name: 'test', version: '1.0.0' }, { capabilities: opts.roots ? { roots: { listChanged: true } } : {} });
+async function connect(opts: { cwd?: string; roots?: string; env?: Record<string, string>; unset?: string[]; apps?: boolean } = {}): Promise<Client> {
+  const capabilities = {
+    ...(opts.roots ? { roots: { listChanged: true } } : {}),
+    ...(opts.apps ? { extensions: { 'io.modelcontextprotocol/ui': { mimeTypes: ['text/html;profile=mcp-app'] } } } : {}),
+  };
+  const client = new Client({ name: 'test', version: '1.0.0' }, { capabilities });
   if (opts.roots) client.setRequestHandler(ListRootsRequestSchema, async () => ({ roots: [{ uri: pathToFileURL(opts.roots!).href, name: 'root' }] }));
   const childEnv = { ...env, ...opts.env };
   for (const key of opts.unset ?? []) delete childEnv[key];
@@ -256,7 +260,7 @@ describe('raw stdio', () => {
     for (const f of frames) expect(f.jsonrpc).toBe('2.0');
     const byId = new Map(frames.map((f) => [f.id, f]));
     expect(byId.get(1)!.result.protocolVersion).toBe('2025-06-18');
-    expect(byId.get(1)!.result.capabilities).toEqual({ tools: { listChanged: false } });
+    expect(byId.get(1)!.result.capabilities).toEqual({ tools: { listChanged: false }, resources: { listChanged: false } });
     expect(byId.get(2)!.result.protocolVersion).toBe('2025-11-25');
     expect(byId.get(3)!.error!.code).toBe(-32601);
     expect(byId.get(4)!.result).toEqual({});
@@ -590,5 +594,84 @@ describe('showing boards', () => {
     const { text } = await call(client, 'canvas_open');
     expect(text).toContain('No whiteboard panel is connected');
     expect(text).toContain('Do not open board links in a browser or preview tool');
+  });
+});
+
+describe('MCP Apps (board inline in the chat)', () => {
+  const BOARD_URI = 'ui://whiteboard-mcp/board.html';
+  const boardHtml = join(repo, 'dist', 'app', 'board.html');
+  type ViewResult = Result & { structuredContent?: { messages?: Array<{ t: string; [k: string]: unknown }> } };
+  const view = async (client: Client, args: Record<string, unknown>) => (await client.callTool({ name: 'canvas_view', arguments: args })) as ViewResult;
+
+  it('links canvas_open to the ui:// board and lists the relay tool only for clients that render MCP Apps', async () => {
+    const plain = await connect();
+    const { tools } = await plain.listTools();
+    expect(tools.map((t) => t.name)).not.toContain('canvas_view');
+    expect(tools.find((t) => t.name === 'canvas_open')?._meta).toBeUndefined();
+    const { resources } = await plain.listResources();
+    expect(resources).toEqual([expect.objectContaining({ uri: BOARD_URI, mimeType: 'text/html;profile=mcp-app' })]);
+
+    const apps = await connect({ apps: true });
+    const listed = (await apps.listTools()).tools;
+    expect(listed.find((t) => t.name === 'canvas_open')?._meta).toEqual({ ui: { resourceUri: BOARD_URI }, 'ui/resourceUri': BOARD_URI });
+    expect(listed.find((t) => t.name === 'canvas_view')?._meta).toEqual({ ui: { visibility: ['app'] } });
+  });
+
+  it.skipIf(!existsSync(boardHtml))('serves the single-file view', async () => {
+    const client = await connect({ apps: true });
+    const { contents } = await client.readResource({ uri: BOARD_URI });
+    expect(contents[0]).toMatchObject({ uri: BOARD_URI, mimeType: 'text/html;profile=mcp-app' });
+    const html = (contents[0] as { text: string }).text;
+    expect(html.startsWith('<!doctype html>')).toBe(true);
+    // Self-contained: one inline module script, and no markup outside it loads anything.
+    expect(html.match(/<\/script>/g)?.length).toBe(1);
+    const markup = html.replace(/<script type="module">[\s\S]*<\/script>/, '').replace(/<style>[\s\S]*?<\/style>/g, '');
+    expect(/\s(src|href)=/.test(markup)).toBe(false);
+    await expect(client.readResource({ uri: 'ui://whiteboard-mcp/other.html' })).rejects.toThrow(/Unknown resource/);
+  });
+
+  it('shows the board inline instead of opening anything, and relays a live viewer for the view', async () => {
+    const client = await connect({ apps: true, env: { WHITEBOARD_CHAT_ID: 'inline-chat' } });
+    const opened = await call(client, 'canvas_open', { title: 'Inline' });
+    expect(opened.text).toContain('Shown inline in the chat.');
+    const board = (opened.result as ViewResult & { structuredContent?: { board?: string } }).structuredContent?.board;
+    expect(board).toMatch(/^main-workspace-[0-9a-f]{6}$/);
+    // The view is still loading: no "nobody is watching" nudge right after canvas_open.
+    const first = await call(client, 'canvas_draw', { elements: [{ id: 'r1', type: 'rectangle', x: 0, y: 0, label: 'One' }] });
+    expect(first.text).not.toContain('Nobody is watching');
+
+    const snap = await view(client, { view: 'v1', board, wait: 3000 });
+    expect(snap.isError).toBeFalsy();
+    const snapshot = snap.structuredContent?.messages?.find((m) => m.t === 'snapshot') as { canvas: { elements: Array<{ id: string }> } } | undefined;
+    expect(snapshot?.canvas.elements.map((e) => e.id)).toContain('r1');
+    expect((await call(client, 'canvas_read')).text).toContain('1 viewer');
+
+    // The agent draws: the next poll brings it to the view.
+    const polling = view(client, { view: 'v1', board, wait: 5000 });
+    await call(client, 'canvas_draw', { elements: [{ id: 'r2', type: 'rectangle', x: 200, y: 0, label: 'Two' }] });
+    const drawn = (await polling).structuredContent?.messages?.filter((m) => m.t === 'elements') ?? [];
+    expect(drawn.flatMap((m) => (m.elements as Array<{ id: string }>).map((e) => e.id))).toContain('r2');
+
+    // The human draws in the view: the agent reads it.
+    const sent = await view(client, { view: 'v1', board, send: [{ t: 'elements', elements: [humanRect('human1')] }] });
+    expect(sent.structuredContent?.messages).toEqual([]);
+    await expect.poll(async () => (await call(client, 'canvas_read')).text).toContain('human1');
+
+    await view(client, { view: 'v1', board, close: true });
+    await expect.poll(async () => (await call(client, 'canvas_read')).text).toContain('0 viewers');
+  });
+
+  it('turns bad relay calls into tool errors', async () => {
+    const client = await connect({ apps: true });
+    expect((await view(client, { view: 'v2' })).isError).toBe(true);
+    const bad = await view(client, { view: 'v2', board: 'Not A Board!', wait: 0 });
+    expect(bad.isError).toBe(true);
+    expect(bad.content[0]?.text).toMatch(/could not connect the view/);
+  });
+
+  it('nudges the agent to canvas_open when nobody watches an inline board', async () => {
+    const client = await connect({ apps: true, env: { WHITEBOARD_CHAT_ID: 'inline-nudge' } });
+    const { text } = await call(client, 'canvas_draw', { elements: [{ id: 'n', type: 'rectangle', x: 0, y: 0 }] });
+    expect(text).toContain('call canvas_open to show it inline in the chat');
   });
 });
