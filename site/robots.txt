@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://ansuman-shukla.github.io/whiteboard-mcp/sitemap.xml
