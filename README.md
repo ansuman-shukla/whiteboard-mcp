@@ -5,6 +5,12 @@
   </picture>
 </a>
 
+```sh
+claude mcp add whiteboard --scope user -- npx -y @ansuman-shukla/whiteboard-mcp
+```
+
+<p align="center"><sub>Needs Node.js 20+. Using Codex, Cursor, Gemini CLI, VS Code or another agent? <a href="#add-it-to-your-agent">Commands for every agent ↓</a></sub></p>
+
 <br>
 
 <img src="docs/media/dots-and-boxes.gif" width="100%" alt="Playing Dots and Boxes with a coding agent: the human draws a line on the board, the agent sees the move and plays back, until red wins 12 to 4">
@@ -49,13 +55,40 @@ More to try:
   <img src="docs/media/readme/steps-light.svg" width="100%" alt="Get started in a minute: 1. Add it to your agent with one npx line. 2. Start a new chat. 3. Ask for a drawing.">
 </picture>
 
-Requires Node.js 20+.
+<a name="add-it-to-your-agent"></a>
+
+**Add it to your agent** (Node.js 20+), then start a new chat:
 
 ```sh
+# Claude Code
 claude mcp add whiteboard --scope user -- npx -y @ansuman-shukla/whiteboard-mcp
+
+# Codex CLI
+codex mcp add whiteboard -- npx -y @ansuman-shukla/whiteboard-mcp
+
+# Gemini CLI
+gemini mcp add --scope user whiteboard npx -y @ansuman-shukla/whiteboard-mcp
+
+# Devin CLI
+devin mcp add whiteboard --scope user -- npx -y @ansuman-shukla/whiteboard-mcp
+
+# VS Code
+code --add-mcp '{"name":"whiteboard","command":"npx","args":["-y","@ansuman-shukla/whiteboard-mcp"]}'
 ```
 
-Codex, Cursor, Gemini CLI, OpenCode, Devin, VS Code, Claude Desktop and agents without MCP: see [client setup](docs/clients.md). For boards in a tab beside the chat, install the [IDE panel](docs/ide-panel.md). The bundled [skill](docs/clients.md#the-skill-recommended-for-every-agent) teaches the agent when a drawing helps.
+**Cursor, Claude Desktop, Windsurf and other JSON configs** (`~/.cursor/mcp.json`, Claude Desktop's config, …):
+
+```json
+{ "mcpServers": { "whiteboard": { "command": "npx", "args": ["-y", "@ansuman-shukla/whiteboard-mcp"] } } }
+```
+
+**OpenCode** (`opencode.json`):
+
+```json
+{ "mcp": { "whiteboard": { "type": "local", "command": ["npx", "-y", "@ansuman-shukla/whiteboard-mcp"] } } }
+```
+
+Agents without MCP, project-level configs and more: [client setup](docs/clients.md). For boards in a tab beside the chat, install the [IDE panel](docs/ide-panel.md). The bundled [skill](docs/clients.md#the-skill-recommended-for-every-agent) teaches the agent when a drawing helps.
 
 <br>
 
