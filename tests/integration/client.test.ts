@@ -1,5 +1,5 @@
-import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, statSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -13,6 +13,7 @@ import type { DaemonInfo } from '../../src/shared/config.js';
 import type { ExElement, ServerMessage } from '../../src/shared/protocol.js';
 
 const fixture = fileURLToPath(new URL('../fixtures/serve.mjs', import.meta.url));
+const epermFixture = fileURLToPath(new URL('../fixtures/serve-listen-eperm.mjs', import.meta.url));
 const roots: string[] = [];
 const pids = new Set<number>();
 const servers: Server[] = [];
@@ -153,10 +154,48 @@ describe('daemon discovery and autostart', () => {
     expect(daemonInfo().port).not.toBe(port);
   });
 
-  it('times out with a clear error when the daemon cannot start', async () => {
-    await useHome({ WHITEBOARD_ENTRY: join(home, 'missing.mjs') });
+  it('times out with a clear error when the daemon never becomes ready', async () => {
+    await useHome();
+    const hang = join(home, 'hang.mjs');
+    writeFileSync(hang, 'setTimeout(() => {}, 3000);\n');
+    process.env.WHITEBOARD_ENTRY = hang;
     const err = await CanvasClient.connect({ startTimeoutMs: 500 }).catch((e: unknown) => e);
     expect(err).toMatchObject({ name: 'CanvasError', code: 'daemon_start_timeout' });
+  });
+
+  it('fails fast, without waiting for the timeout, when the daemon exits before it is ready', async () => {
+    await useHome({ WHITEBOARD_ENTRY: join(home, 'missing.mjs') });
+    writeFileSync(file('daemon.log'), '2026-01-01T00:00:00.000Z [1] shutting down (idle)\n');
+    const started = Date.now();
+    const err = await CanvasClient.connect({ startTimeoutMs: 8000 }).catch((e: unknown) => e);
+    expect(err).toMatchObject({ name: 'CanvasError', code: 'daemon_start_failed' });
+    expect((err as Error).message).toContain('exited with code 1');
+    expect((err as Error).message).not.toContain('shutting down');
+    expect(Date.now() - started).toBeLessThan(4000);
+  });
+
+  it('keeps waiting when the started daemon exits cleanly because another one is coming up', async () => {
+    await useHome();
+    const yields = join(home, 'yield.mjs');
+    writeFileSync(yields, 'process.exit(0);\n');
+    process.env.WHITEBOARD_ENTRY = yields;
+    const connecting = connect({ startTimeoutMs: 8000 });
+    await sleep(400);
+    const other = spawn(process.execPath, [fixture], { detached: true, stdio: 'ignore', env: process.env });
+    other.unref();
+    pids.add(other.pid!);
+    const client = await connecting;
+    expect(await pidOf(client)).toBe(other.pid);
+  });
+
+  it('names the reason and the likely sandbox when the daemon may not listen on 127.0.0.1', async () => {
+    await useHome({ WHITEBOARD_ENTRY: epermFixture });
+    const started = Date.now();
+    const err = await CanvasClient.connect({ startTimeoutMs: 8000 }).catch((e: unknown) => e);
+    expect(err).toMatchObject({ name: 'CanvasError', code: 'daemon_start_failed' });
+    expect((err as Error).message).toContain('listen failed: Error: listen EPERM');
+    expect((err as Error).message).toMatch(/not permitted here, probably a sandbox/);
+    expect(Date.now() - started).toBeLessThan(4000);
   });
 });
 

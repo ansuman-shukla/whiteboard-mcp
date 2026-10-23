@@ -52,6 +52,11 @@ export interface CanvasSummary {
   chat?: string;
 }
 
+export interface CanvasSearchHit extends CanvasSummary {
+  /** A line of the board's text that matches the search query. */
+  snippet?: string;
+}
+
 export interface CanvasSnapshot {
   id: string;
   title: string;
@@ -61,6 +66,24 @@ export interface CanvasSnapshot {
   files: Record<string, BinaryFile>;
   notes: CanvasNote[];
   viewers: number;
+}
+
+/** A frozen copy of a board kept in the user's library, so any later chat can find and load it. */
+export interface SavedSummary {
+  id: string;
+  name: string;
+  savedAt: number;
+  elementCount: number;
+  /** The board it was saved from. */
+  source: string;
+  workspace?: string;
+  /** A line of the board's text that matches the search query. */
+  snippet?: string;
+}
+
+export interface SavedBoard extends Omit<SavedSummary, 'snippet'> {
+  elements: ExElement[];
+  files: Record<string, BinaryFile>;
 }
 
 export interface ChangeRecord {
@@ -130,6 +153,9 @@ export type ServerMessage =
   | { t: 'note'; note: CanvasNote }
   | { t: 'request'; reqId: string; type: ViewerRequestType; payload: unknown }
   | { t: 'viewers'; count: number }
+  /** Answers this viewer's own `save`. */
+  | { t: 'saved'; ok: true; saved: SavedSummary }
+  | { t: 'saved'; ok: false; error: string }
   | { t: 'error'; message: string };
 
 /** Messages sent by a browser viewer to the daemon over WebSocket. */
@@ -137,6 +163,8 @@ export type ClientMessage =
   | { t: 'elements'; elements: ExElement[]; files?: BinaryFile[]; actor?: Actor }
   | { t: 'response'; reqId: string; ok: boolean; result?: unknown; error?: string }
   | { t: 'note'; text: string }
+  /** Saves the board to the library; the name defaults to the board's title. */
+  | { t: 'save'; name?: string }
   | { t: 'visible'; visible: boolean };
 
 /**
@@ -168,6 +196,15 @@ export const API = {
   notes: (id: string) => `/api/canvases/${encodeURIComponent(id)}/notes`,
   request: (id: string) => `/api/canvases/${encodeURIComponent(id)}/request`,
   show: (id: string) => `/api/canvases/${encodeURIComponent(id)}/show`,
+  /** Saves the canvas to the library: `{ name? }`. */
+  save: (id: string) => `/api/canvases/${encodeURIComponent(id)}/save`,
+  /** Replaces the canvas's scene with a saved board: `{ saved }`. */
+  load: (id: string) => `/api/canvases/${encodeURIComponent(id)}/load`,
+  /** Saved boards matching every word of `q` (all when empty), boards of `workspace` first. */
+  saved: (q = '', workspace = '', limit?: number) => `/api/saved?${new URLSearchParams({ q, workspace, ...(limit ? { limit: String(limit) } : {}) })}`,
+  savedBoard: (id: string) => `/api/saved/${encodeURIComponent(id)}`,
+  /** Live boards of every folder matching every word of `q` (all non-empty when empty), boards of `workspace` first. */
+  search: (q = '', workspace = '', limit?: number) => `/api/search?${new URLSearchParams({ q, workspace, ...(limit ? { limit: String(limit) } : {}) })}`,
   hostWs: '/ws/host',
   viewer: (id: string) => `/c/${encodeURIComponent(id)}`,
   ws: '/ws',

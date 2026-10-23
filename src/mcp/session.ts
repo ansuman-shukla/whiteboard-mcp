@@ -1,9 +1,10 @@
 import { execFile } from 'node:child_process';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stateDir } from '../shared/config.js';
+import { sha6, slug } from '../shared/ids.js';
 import { splitCommand } from './open.js';
 
 export interface CanvasRef {
@@ -17,14 +18,9 @@ interface SessionFile {
   chat?: string;
 }
 
-const sha6 = (s: string): string => createHash('sha256').update(s).digest('hex').slice(0, 6);
 const CHAT_COMMAND_TIMEOUT_MS = 3000;
 /** Tool-call `_meta` keys hosts use for the conversation id. */
 const META_CHAT_KEYS = ['chatId', 'conversationId', 'conversation_id', 'sessionId', 'session_id', 'threadId'];
-
-export function slug(s: string): string {
-  return s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40).replace(/-+$/, '') || 'canvas';
-}
 
 /** Each chat's own board, namespaced by its workspace folder (the "space"). */
 export function chatBoard(workspace: string, chat: string): CanvasRef {

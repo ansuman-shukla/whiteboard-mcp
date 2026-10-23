@@ -9,10 +9,12 @@ import {
   type BinaryFile,
   type CanvasMeta,
   type CanvasNote,
+  type CanvasSearchHit,
   type CanvasSnapshot,
   type CanvasSummary,
   type ChangesResponse,
   type ExElement,
+  type SavedSummary,
   type ShowRequest,
   type ViewerRequestType,
 } from '../shared/protocol.js';
@@ -80,6 +82,23 @@ async function probe(): Promise<Endpoint | undefined> {
   return token && health?.app === APP_NAME && health.pid === info.pid ? { baseUrl, token } : undefined;
 }
 
+/** Why a daemon we started gave up, from its own last line in daemon.log (it logs e.g. `listen failed: ...` before exiting). */
+function startFailure(pid: number | undefined, code: number | null, signal: NodeJS.Signals | null): CanvasError {
+  const logFile = statePath('daemon.log');
+  let log = '';
+  try {
+    log = readFileSync(logFile, 'utf8');
+  } catch {
+    // the daemon could not write its log either
+  }
+  const reason = pid === undefined ? undefined : log.split('\n').filter((line) => line.includes(` [${pid}] `)).pop()?.replace(/^\S+ \[\d+\] /, '');
+  const how = code === null ? `was stopped (${signal})` : `exited with code ${code}`;
+  const sandboxed = /\b(EPERM|EACCES)\b/.test(reason ?? '')
+    ? ' Listening on 127.0.0.1 is not permitted here, probably a sandbox: run whiteboard-mcp outside it (e.g. as an MCP server rather than from a sandboxed shell) or allow local network access.'
+    : '';
+  return new CanvasError(`canvas daemon ${how} before it was ready${reason ? `: ${reason}` : ''} (see ${logFile}).${sandboxed}`, 503, 'daemon_start_failed');
+}
+
 async function discover(opts: ConnectOptions): Promise<Endpoint> {
   const found = await probe();
   if (found) return found;
@@ -89,7 +108,9 @@ async function discover(opts: ConnectOptions): Promise<Endpoint> {
   // cwd = state dir so the daemon never pins the caller's project directory. Concurrent spawns are
   // safe: the daemon's lock lets exactly one of them run.
   const child = spawn(process.execPath, [entry, 'serve'], { detached: true, stdio: 'ignore', env: process.env, cwd: stateDir() });
+  let exit: { code: number | null; signal: NodeJS.Signals | null } | undefined;
   child.once('error', (err) => (spawnError = err));
+  child.once('exit', (code, signal) => (exit = { code, signal }));
   child.unref();
   const timeoutMs = opts.startTimeoutMs ?? 8000;
   const deadline = Date.now() + timeoutMs;
@@ -98,6 +119,8 @@ async function discover(opts: ConnectOptions): Promise<Endpoint> {
     await sleep(POLL_MS);
     const endpoint = await probe();
     if (endpoint) return endpoint;
+    // Exit code 0 means another daemon holds the lock; keep probing for that one.
+    if (exit && exit.code !== 0) throw startFailure(child.pid, exit.code, exit.signal);
   }
   throw new CanvasError(`canvas daemon did not start within ${timeoutMs}ms (see ${statePath('daemon.log')})`, 503, 'daemon_start_timeout');
 }
@@ -179,6 +202,29 @@ export class CanvasClient {
       if (err.status === 502) throw new CanvasError(`the viewer failed the ${type} request: ${err.code}`, 502, 'viewer_error');
       throw err;
     }
+  }
+
+  /** Saves a frozen copy of the canvas to the library, named after the board unless `name` is given. */
+  save(id: string, name?: string): Promise<SavedSummary> {
+    return this.call('POST', API.save(id), name === undefined ? {} : { name });
+  }
+
+  searchSaved(query = '', workspace = '', limit?: number): Promise<SavedSummary[]> {
+    return this.call('GET', API.saved(query, workspace, limit));
+  }
+
+  /** Live boards of every folder matching the query, this workspace's first. */
+  searchBoards(query = '', workspace = '', limit?: number): Promise<CanvasSearchHit[]> {
+    return this.call('GET', API.search(query, workspace, limit));
+  }
+
+  /** Replaces the canvas's scene with a copy of a saved board. */
+  loadSaved(id: string, savedId: string): Promise<ApplyResponse> {
+    return this.call('POST', API.load(id), { saved: savedId });
+  }
+
+  async deleteSaved(savedId: string): Promise<void> {
+    await this.call('DELETE', API.savedBoard(savedId));
   }
 
   async deleteCanvas(id: string): Promise<void> {
