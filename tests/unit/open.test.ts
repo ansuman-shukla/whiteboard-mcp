@@ -17,7 +17,16 @@ describe('openerArgv', () => {
   });
 
   it('splits commands with quotes and escapes without a shell', () => {
-    expect(splitCommand(`a 'b c' "d \\"e\\"" f\\ g`)).toEqual(['a', 'b c', 'd "e"', 'f g']);
+    expect(splitCommand(`a 'b c' "d \\"e\\"" f\\ g`, 'linux')).toEqual(['a', 'b c', 'd "e"', 'f g']);
+    expect(splitCommand(`"back\\\\slash" 'it\\s'`, 'linux')).toEqual(['back\\slash', 'it\\s']);
+  });
+
+  it('keeps the backslashes of Windows paths, quoted on every platform and unquoted on Windows', () => {
+    for (const platform of ['win32', 'linux', 'darwin'] as const)
+      expect(splitCommand(`"C:\\Program Files\\Mozilla Firefox\\firefox.exe" -new-window {url}`, platform)).toEqual(['C:\\Program Files\\Mozilla Firefox\\firefox.exe', '-new-window', '{url}']);
+    expect(splitCommand(`C:\\tools\\browser.exe {url}`, 'win32')).toEqual(['C:\\tools\\browser.exe', '{url}']);
+    expect(splitCommand(`say \\"hi\\"`, 'win32')).toEqual(['say', '"hi"']);
+    expect(openerArgv(URL, `"C:\\Apps\\Browser\\b.exe" {url}`, 'win32')).toEqual(['C:\\Apps\\Browser\\b.exe', URL]);
   });
 });
 

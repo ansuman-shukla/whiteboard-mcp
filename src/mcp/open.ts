@@ -7,22 +7,27 @@ export interface OpenResult {
   note: string;
 }
 
-/** Splits a command template into argv without a shell; supports '…' and "…" quoting and backslash escapes. */
-export function splitCommand(template: string): string[] {
+/**
+ * Splits a command template into argv without a shell, with '…' and "…" quoting. As in a POSIX shell, a
+ * backslash inside "…" only escapes " and \, so Windows paths survive quoting; unquoted, it escapes any
+ * character, except on Windows where it only escapes ".
+ */
+export function splitCommand(template: string, platform = process.platform): string[] {
   const args: string[] = [];
   let cur = '';
   let quote: '"' | "'" | null = null;
   let inArg = false;
   for (let i = 0; i < template.length; i++) {
     const c = template[i]!;
+    const next = template[i + 1];
     if (quote) {
       if (c === quote) quote = null;
-      else if (c === '\\' && quote === '"' && i + 1 < template.length) cur += template[++i];
+      else if (c === '\\' && quote === '"' && (next === '"' || next === '\\')) cur += template[++i];
       else cur += c;
     } else if (c === '"' || c === "'") {
       quote = c;
       inArg = true;
-    } else if (c === '\\' && i + 1 < template.length) {
+    } else if (c === '\\' && next !== undefined && (platform !== 'win32' || next === '"')) {
       cur += template[++i];
       inArg = true;
     } else if (/\s/.test(c)) {
@@ -47,7 +52,7 @@ export function openerArgv(url: string, setting = process.env.WHITEBOARD_OPEN, p
     if (platform === 'win32') return ['cmd', '/c', 'start', '""', `"${url}"`];
     return ['xdg-open', url];
   }
-  const argv = splitCommand(mode).map((a) => a.split('{url}').join(url));
+  const argv = splitCommand(mode, platform).map((a) => a.split('{url}').join(url));
   return mode.includes('{url}') ? argv : [...argv, url];
 }
 
