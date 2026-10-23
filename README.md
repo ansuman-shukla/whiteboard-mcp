@@ -107,6 +107,36 @@ Agents without MCP, project-level configs and more: [client setup](docs/clients.
 
 <p align="center"><sub>Want a quick one-off diagram inside Claude or ChatGPT on the web? Excalidraw MCP is great for that. <a href="docs/comparison.md">Full comparison →</a></sub></p>
 
+## FAQ
+
+### Is there an Excalidraw MCP server that runs locally and works offline?
+
+Yes, that's whiteboard-mcp. It runs a small daemon on `127.0.0.1` and serves the Excalidraw viewer with its fonts bundled. After the first `npx` download it needs no internet, no account and no API key. Boards are plain JSON files in `~/.whiteboard-mcp`.
+
+### How do I let Claude Code, Codex or Cursor draw diagrams?
+
+Add the MCP server with the one-line command for your agent [above](#add-it-to-your-agent), start a new chat and ask: *"Draw how this repo handles a request on the whiteboard."* The agent draws step by step on a live Excalidraw board beside the chat.
+
+### Can the agent see what I draw on the whiteboard?
+
+Yes. Every time it looks, it gets a short list of what you added, moved or deleted, plus any notes you left. It can also take a PNG screenshot of the board to check its own layout.
+
+### Which agents and editors does it work with?
+
+Any MCP client: Claude Code, Claude Desktop, OpenAI Codex, Cursor, Gemini CLI, VS Code (Copilot agent mode), Windsurf, Devin, OpenCode and more. Agents without MCP can use the plain `whiteboard-mcp call` CLI. The [IDE panel](docs/ide-panel.md) shows boards in a tab beside the chat in VS Code, Cursor, Windsurf and Devin Desktop; anywhere else they open in your browser.
+
+### Can it turn Mermaid into an Excalidraw diagram, or export it?
+
+Yes. `canvas_mermaid` converts Mermaid (flowcharts, sequence diagrams, …) into editable hand-drawn elements, and `canvas_export` saves the board as `.excalidraw` or `.png` in your project.
+
+### Are boards saved? Can I reopen one later?
+
+Each chat gets its own board, saved on disk. Any later chat, even in another folder, can reopen it by name or find it by the text on it, and you can keep frozen copies in a saved library. See [boards](docs/boards.md).
+
+### Is it free and private?
+
+Yes. It's MIT licensed with no license key or paid tier. Everything stays on your machine: the daemon only listens on `127.0.0.1` and every API call needs a per-user token. See [security](docs/security.md).
+
 <br>
 
 <p align="center">
