@@ -23,14 +23,14 @@ Requires VS Code 1.101 or later (its extension host is Node 22 with a built-in W
 The extension isn't on the Marketplace yet. Build the `.vsix` from a clone and install it:
 
 ```sh
-npm install && npm run build      # whiteboard-mcp itself
+npm install && npm run build      # Whiteboard MCP itself
 npm run build:vscode              # writes build/whiteboard-mcp-<version>.vsix
 code --install-extension build/whiteboard-mcp-0.1.0.vsix
 ```
 
 Cursor and Windsurf have the same flag (`cursor --install-extension …`, `windsurf --install-extension …`), or use **Extensions › … › Install from VSIX…** in any of them.
 
-Then **open a new terminal** (or restart agents already running): only processes started after the extension activated know which window they are in. Nothing else to configure; add whiteboard-mcp to your agent as usual ([client setup](clients.md)). For VS Code's own agent:
+Then **open a new terminal** (or restart agents already running): only processes started after the extension activated know which window they are in. Nothing else to configure; add Whiteboard MCP to your agent as usual ([client setup](clients.md)). For VS Code's own agent:
 
 ```jsonc
 // .vscode/mcp.json, or "MCP: Open User Configuration"

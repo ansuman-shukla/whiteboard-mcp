@@ -3,27 +3,27 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>whiteboard-mcp: local Excalidraw whiteboard MCP server for coding agents</title>
+<title>Whiteboard MCP: local Excalidraw whiteboard MCP server for coding agents</title>
 <meta name="description" content="Free, open-source Excalidraw whiteboard MCP server that runs locally and offline. Claude Code, Codex, Cursor, Gemini CLI and VS Code agents draw diagrams live beside the chat and see what you draw back.">
 <link rel="canonical" href="https://ansuman-shukla.github.io/whiteboard-mcp/">
 <link rel="alternate" type="text/plain" title="llms.txt" href="https://ansuman-shukla.github.io/whiteboard-mcp/llms.txt">
 <meta name="theme-color" content="#fafaf7">
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="whiteboard-mcp">
-<meta property="og:title" content="whiteboard-mcp: a live whiteboard your coding agent draws on">
+<meta property="og:site_name" content="Whiteboard MCP">
+<meta property="og:title" content="Whiteboard MCP: a live whiteboard your coding agent draws on">
 <meta property="og:description" content="Local, offline Excalidraw MCP server. Your agent draws diagrams beside the chat and sees what you draw back. Works with Claude Code, Codex, Cursor, Gemini CLI, VS Code and any MCP client.">
 <meta property="og:url" content="https://ansuman-shukla.github.io/whiteboard-mcp/">
 <meta property="og:image" content="https://ansuman-shukla.github.io/whiteboard-mcp/media/social-preview.png">
 <meta property="og:image:width" content="1280">
 <meta property="og:image:height" content="640">
-<meta property="og:image:alt" content="whiteboard-mcp: a live whiteboard your coding agent draws on. You draw back.">
+<meta property="og:image:alt" content="Whiteboard MCP: a live whiteboard your coding agent draws on. You draw back.">
 <meta name="twitter:card" content="summary_large_image">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
-  "name": "whiteboard-mcp",
-  "alternateName": ["Whiteboard MCP", "Excalidraw whiteboard MCP server"],
+  "name": "Whiteboard MCP",
+  "alternateName": ["whiteboard-mcp", "Excalidraw whiteboard MCP server"],
   "description": "Free, open-source Excalidraw whiteboard MCP server that runs locally and offline. Coding agents draw diagrams live beside the chat and see what the user draws back.",
   "applicationCategory": "DeveloperApplication",
   "operatingSystem": "macOS, Windows, Linux",
@@ -45,7 +45,7 @@
   "@context": "https://schema.org",
   "@type": "FAQPage",
   "mainEntity": [
-    { "@type": "Question", "name": "Is there an Excalidraw MCP server that runs locally and works offline?", "acceptedAnswer": { "@type": "Answer", "text": "Yes, whiteboard-mcp. It runs a small daemon on 127.0.0.1 and serves the Excalidraw viewer with its fonts bundled. After the first npx download it needs no internet, no account and no API key. Boards are plain JSON files in ~/.whiteboard-mcp." } },
+    { "@type": "Question", "name": "Is there an Excalidraw MCP server that runs locally and works offline?", "acceptedAnswer": { "@type": "Answer", "text": "Yes, Whiteboard MCP. It runs a small daemon on 127.0.0.1 and serves the Excalidraw viewer with its fonts bundled. After the first npx download it needs no internet, no account and no API key. Boards are plain JSON files in ~/.whiteboard-mcp." } },
     { "@type": "Question", "name": "How do I let Claude Code, Codex or Cursor draw diagrams?", "acceptedAnswer": { "@type": "Answer", "text": "Add the MCP server with one line, for example: claude mcp add whiteboard --scope user -- npx -y @ansuman-shukla/whiteboard-mcp. Start a new chat and ask the agent to draw something on the whiteboard. It draws step by step on a live Excalidraw board beside the chat." } },
     { "@type": "Question", "name": "Can the agent see what I draw on the whiteboard?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Every time it looks, it gets a short list of what you added, moved or deleted, plus any notes you left. It can also take a PNG screenshot of the board to check its own layout." } },
     { "@type": "Question", "name": "Which agents and editors does it work with?", "acceptedAnswer": { "@type": "Answer", "text": "Any MCP client: Claude Code, Claude Desktop, OpenAI Codex, Cursor, Gemini CLI, VS Code (Copilot agent mode), Windsurf, Devin, OpenCode and more. Agents without MCP can use the whiteboard-mcp call CLI. An IDE panel shows boards in a tab beside the chat in VS Code, Cursor, Windsurf and Devin Desktop." } },
@@ -86,10 +86,10 @@ footer{margin-top:72px;font-size:14px;color:var(--faint)}
 <header>
   <div class="brand">
     <svg width="72" height="72" viewBox="0 0 120 120" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4dabf7"/><stop offset="1" stop-color="#9775fa"/></linearGradient></defs><rect width="120" height="120" rx="28" fill="url(#lg)"/><rect x="18" y="30" width="34" height="24" rx="6" fill="none" stroke="#fff" stroke-width="5"/><rect x="68" y="66" width="34" height="24" rx="6" fill="#fff"/><path d="M35 54c0 16 8 24 30 24" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/><path d="M58 70l8 8-8 8" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="M74 26c6-4 14-4 22 2" fill="none" stroke="#ffa94d" stroke-width="5" stroke-linecap="round"/></svg>
-    <h1>whiteboard-mcp</h1>
+    <h1>Whiteboard MCP</h1>
   </div>
   <p class="tagline">A live whiteboard your coding agent draws on. <span>You draw back.</span></p>
-  <p><strong>whiteboard-mcp</strong> is a free, open-source <strong>Excalidraw whiteboard MCP server</strong> that runs locally, even offline. Your coding agent draws diagrams on a live board beside the chat, and sees what you draw back. Works with Claude Code, Codex, Cursor, Gemini CLI, VS Code, Windsurf, Devin and any other MCP client.</p>
+  <p><strong>Whiteboard MCP</strong> is a free, open-source <strong>Excalidraw whiteboard MCP server</strong> that runs locally, even offline. Your coding agent draws diagrams on a live board beside the chat, and sees what you draw back. Works with Claude Code, Codex, Cursor, Gemini CLI, VS Code, Windsurf, Devin and any other MCP client.</p>
   <pre><code>claude mcp add whiteboard --scope user -- npx -y @ansuman-shukla/whiteboard-mcp</code></pre>
   <div class="links">
     <a href="https://github.com/ansuman-shukla/whiteboard-mcp">GitHub</a>
@@ -152,14 +152,14 @@ code --add-mcp '{"name":"whiteboard","command":"npx","args":["-y","@ansuman-shuk
 </section>
 
 <section>
-  <h2 id="comparison">whiteboard-mcp vs Excalidraw MCP</h2>
-  <p><a href="https://github.com/excalidraw/excalidraw-mcp">Excalidraw MCP</a> streams a diagram into the chat as an inline widget, great for a quick one-off diagram in Claude or ChatGPT on the web. whiteboard-mcp gives the agent a board beside the chat that you both work on: it sees what you draw back, screenshots its own board, edits one shape in place, keeps boards across chats, converts Mermaid, and works in any MCP client plus a plain CLI. <a href="https://github.com/ansuman-shukla/whiteboard-mcp/blob/main/docs/comparison.md">Full comparison</a>.</p>
+  <h2 id="comparison">Whiteboard MCP vs Excalidraw MCP</h2>
+  <p><a href="https://github.com/excalidraw/excalidraw-mcp">Excalidraw MCP</a> streams a diagram into the chat as an inline widget, great for a quick one-off diagram in Claude or ChatGPT on the web. Whiteboard MCP gives the agent a board beside the chat that you both work on: it sees what you draw back, screenshots its own board, edits one shape in place, keeps boards across chats, converts Mermaid, and works in any MCP client plus a plain CLI. <a href="https://github.com/ansuman-shukla/whiteboard-mcp/blob/main/docs/comparison.md">Full comparison</a>.</p>
 </section>
 
 <section>
   <h2 id="faq">FAQ</h2>
   <h3>Is there an Excalidraw MCP server that runs locally and works offline?</h3>
-  <p>Yes, that's whiteboard-mcp. It runs a small daemon on <code>127.0.0.1</code> and serves the Excalidraw viewer with its fonts bundled. After the first <code>npx</code> download it needs no internet, no account and no API key. Boards are plain JSON files in <code>~/.whiteboard-mcp</code>.</p>
+  <p>Yes, that's Whiteboard MCP. It runs a small daemon on <code>127.0.0.1</code> and serves the Excalidraw viewer with its fonts bundled. After the first <code>npx</code> download it needs no internet, no account and no API key. Boards are plain JSON files in <code>~/.whiteboard-mcp</code>.</p>
   <h3>How do I let Claude Code, Codex or Cursor draw diagrams?</h3>
   <p>Add the MCP server with the one-line command for your agent <a href="#add-it-to-your-agent">above</a>, start a new chat and ask: <em>"Draw how this repo handles a request on the whiteboard."</em></p>
   <h3>Can the agent see what I draw on the whiteboard?</h3>

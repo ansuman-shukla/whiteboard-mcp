@@ -1,11 +1,11 @@
 <a href="#quick-start">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/media/readme/hero-dark.svg">
-    <img src="docs/media/readme/hero-light.svg" width="100%" alt="whiteboard-mcp: a live whiteboard your coding agent draws on. You draw back.">
+    <img src="docs/media/readme/hero-light.svg" width="100%" alt="Whiteboard MCP: a live whiteboard your coding agent draws on. You draw back.">
   </picture>
 </a>
 
-<p align="center"><b>whiteboard-mcp</b> is a free, open-source <b>Excalidraw whiteboard MCP server</b> that runs locally, even offline. Your coding agent draws diagrams on a live board beside the chat, and sees what you draw back. Works with Claude Code, Codex, Cursor, Gemini CLI, VS Code, Windsurf, Devin and any other MCP client.</p>
+<p align="center"><b>Whiteboard MCP</b> is a free, open-source <b>Excalidraw whiteboard MCP server</b> that runs locally, even offline. Your coding agent draws diagrams on a live board beside the chat, and sees what you draw back. Works with Claude Code, Codex, Cursor, Gemini CLI, VS Code, Windsurf, Devin and any other MCP client.</p>
 
 ```sh
 claude mcp add whiteboard --scope user -- npx -y @ansuman-shukla/whiteboard-mcp
@@ -23,7 +23,7 @@ claude mcp add whiteboard --scope user -- npx -y @ansuman-shukla/whiteboard-mcp
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/media/readme/features-dark.svg">
-  <img src="docs/media/readme/features-light.svg" width="100%" alt="Why whiteboard-mcp: draws step by step, sees what you draw, right beside the chat, remembers boards, local and private, tiny (one runtime dependency, about 7 KB of tool schema per turn).">
+  <img src="docs/media/readme/features-light.svg" width="100%" alt="Why Whiteboard MCP: draws step by step, sees what you draw, right beside the chat, remembers boards, local and private, tiny (one runtime dependency, about 7 KB of tool schema per turn).">
 </picture>
 
 ## What you can do with it
@@ -96,12 +96,12 @@ code --add-mcp '{"name":"whiteboard","command":"npx","args":["-y","@ansuman-shuk
 
 Agents without MCP, project-level configs and more: [client setup](docs/clients.md). For boards in a tab beside the chat, install the [IDE panel](docs/ide-panel.md). The bundled [skill](docs/clients.md#the-skill-recommended-for-every-agent) teaches the agent when a drawing helps.
 
-## whiteboard-mcp vs Excalidraw MCP
+## Whiteboard MCP vs Excalidraw MCP
 
 <a href="docs/comparison.md">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/media/readme/compare-dark.svg">
-    <img src="docs/media/readme/compare-light.svg" width="100%" alt="whiteboard-mcp vs Excalidraw MCP: whiteboard-mcp sees what you draw back as a short list of changes, screenshots its own board, edits one shape in place, keeps boards beyond the chat, works in any MCP client plus a CLI, and converts Mermaid. Excalidraw MCP has animated camera moves and zero install.">
+    <img src="docs/media/readme/compare-light.svg" width="100%" alt="Whiteboard MCP vs Excalidraw MCP: Whiteboard MCP sees what you draw back as a short list of changes, screenshots its own board, edits one shape in place, keeps boards beyond the chat, works in any MCP client plus a CLI, and converts Mermaid. Excalidraw MCP has animated camera moves and zero install.">
   </picture>
 </a>
 
@@ -111,7 +111,7 @@ Agents without MCP, project-level configs and more: [client setup](docs/clients.
 
 ### Is there an Excalidraw MCP server that runs locally and works offline?
 
-Yes, that's whiteboard-mcp. It runs a small daemon on `127.0.0.1` and serves the Excalidraw viewer with its fonts bundled. After the first `npx` download it needs no internet, no account and no API key. Boards are plain JSON files in `~/.whiteboard-mcp`.
+Yes, that's Whiteboard MCP. It runs a small daemon on `127.0.0.1` and serves the Excalidraw viewer with its fonts bundled. After the first `npx` download it needs no internet, no account and no API key. Boards are plain JSON files in `~/.whiteboard-mcp`.
 
 ### How do I let Claude Code, Codex or Cursor draw diagrams?
 

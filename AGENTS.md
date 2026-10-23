@@ -1,4 +1,4 @@
-# whiteboard-mcp
+# Whiteboard MCP
 
 A lightweight local Excalidraw canvas that coding agents draw on live, side by side with a human, to explain things. The human can draw back and leave notes; the agent reads those changes. Exposed as an MCP stdio server (any MCP client) and as a plain CLI (`whiteboard-mcp call <tool> '<json>'`) for harnesses without MCP.
 
@@ -34,6 +34,7 @@ agent ──stdio JSON-RPC──▶ whiteboard-mcp (MCP server, one per agent se
 
 ## Rules
 
+- Name: write **Whiteboard MCP** in prose, titles, alt text and art (bold on a page's first mention). `whiteboard-mcp` only where it's an identifier: npm package, binary/CLI commands, repo and URLs, paths like `~/.whiteboard-mcp`, `serverInfo`, extension id, architecture diagrams naming the process.
 - Runtime dependencies: `ws` only. Everything else (Excalidraw, React, MCP SDK for tests) is a devDependency; the frontend is prebuilt into `dist/frontend`.
 - Never write to stdout from the MCP server except JSON-RPC frames. Logs go to stderr (only when `WHITEBOARD_DEBUG=1`) or the state dir.
 - Never read the user's project `.env`, never write files into the user's working directory unless a tool is asked to export there.

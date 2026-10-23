@@ -1,6 +1,6 @@
-# Installing whiteboard-mcp (for AI agents)
+# Installing Whiteboard MCP (for AI agents)
 
-whiteboard-mcp is a local stdio MCP server. It needs Node.js 20 or newer and nothing else: no API key, no account, no environment variables. It runs entirely on the user's machine.
+**Whiteboard MCP** is a local stdio MCP server. It needs Node.js 20 or newer and nothing else: no API key, no account, no environment variables. It runs entirely on the user's machine.
 
 ## 1. Add the server to the MCP config
 

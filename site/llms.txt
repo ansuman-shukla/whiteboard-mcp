@@ -1,4 +1,4 @@
-# whiteboard-mcp
+# Whiteboard MCP
 
 > Free, open-source Excalidraw whiteboard MCP server that runs locally and offline. A coding agent (Claude Code, Codex, Cursor, Gemini CLI, VS Code, Windsurf, Devin or any MCP client) draws diagrams step by step on a live board beside the chat, and sees what the user draws back as a short list of changes plus notes. MIT licensed, Node.js 20+, one runtime dependency.
 

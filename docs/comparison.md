@@ -1,8 +1,8 @@
-# whiteboard-mcp vs Excalidraw MCP
+# Whiteboard MCP vs Excalidraw MCP
 
-[Excalidraw MCP](https://github.com/excalidraw/excalidraw-mcp) is the official MCP App from the Excalidraw team. It streams a diagram into the chat as an inline widget. whiteboard-mcp gives the agent a board that lives beside the chat, that you both work on, and that sticks around.
+[Excalidraw MCP](https://github.com/excalidraw/excalidraw-mcp) is the official MCP App from the Excalidraw team. It streams a diagram into the chat as an inline widget. **Whiteboard MCP** gives the agent a board that lives beside the chat, that you both work on, and that sticks around.
 
-| | whiteboard-mcp | Excalidraw MCP |
+| | Whiteboard MCP | Excalidraw MCP |
 |---|---|---|
 | **You draw back** | The agent gets a short list of what you added, moved or deleted, plus your notes, on every look | You can edit in fullscreen; the agent re-reads the whole widget state, with no list of what changed |
 | **Agent looks at its own board** | Text description (`canvas_read`) and a PNG (`canvas_screenshot`) | No read or screenshot tool; the model only knows what it sent |
@@ -18,6 +18,6 @@
 
 **Pick Excalidraw MCP** for a quick one-off diagram inside Claude or ChatGPT on the web: zero install and smooth camera animation.
 
-**Pick whiteboard-mcp** when you want to work on a board together with a coding agent: it sees what you draw, checks its own layout, keeps boards across chats, and works in terminal agents too.
+**Pick Whiteboard MCP** when you want to work on a board together with a coding agent: it sees what you draw, checks its own layout, keeps boards across chats, and works in terminal agents too.
 
 Based on the Excalidraw MCP README and `src/server.ts` (tools `read_me`, `create_view`, `export_to_excalidraw`), October 2026.
