@@ -1,7 +1,7 @@
 {
   "name": "whiteboard-mcp",
   "displayName": "Whiteboard MCP",
-  "description": "Shows the live whiteboards your coding agents draw with whiteboard-mcp beside the chat, in the window the agent runs in.",
+  "description": "Shows the live whiteboards your coding agents draw with Whiteboard MCP beside the chat, in the window the agent runs in.",
   "version": "0.1.0",
   "publisher": "ansuman-shukla",
   "license": "MIT",
@@ -42,7 +42,7 @@
           "type": "string",
           "default": "",
           "scope": "machine",
-          "description": "whiteboard-mcp state folder (default: WHITEBOARD_HOME, else ~/.whiteboard-mcp)."
+          "description": "Whiteboard MCP state folder (default: WHITEBOARD_HOME, else ~/.whiteboard-mcp)."
         }
       }
     }
