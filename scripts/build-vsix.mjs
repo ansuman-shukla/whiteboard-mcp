@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // Packages vscode/ as a .vsix without @vscode/vsce: a VSIX is a zip holding extension.vsixmanifest,
 // [Content_Types].xml and the extension under extension/.
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
