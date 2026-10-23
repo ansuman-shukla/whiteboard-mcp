@@ -1,60 +1,59 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="962" viewBox="0 0 1600 962" role="img" aria-label="whiteboard-mcp vs Excalidraw MCP. Sees what you draw back: whiteboard-mcp yes (Short list of your changes + notes), Excalidraw MCP part (Re-reads the whole scene). Agent screenshots its own board: whiteboard-mcp yes, Excalidraw MCP no. Edit one shape in place: whiteboard-mcp yes (Arrows stay attached), Excalidraw MCP part (Re-sends from a checkpoint). Boards outlive the chat: whiteboard-mcp yes (Reopen by name, search the text), Excalidraw MCP no (Tied to the chat). Works in any MCP client: whiteboard-mcp yes (Plus a plain CLI), Excalidraw MCP no (Only hosts with MCP Apps). Mermaid to hand-drawn: whiteboard-mcp yes, Excalidraw MCP no. Animated camera moves: whiteboard-mcp no, Excalidraw MCP yes. Zero install (hosted URL): whiteboard-mcp no (One npx line, runs locally), Excalidraw MCP yes.">
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="856" viewBox="0 0 1600 856" role="img" aria-label="whiteboard-mcp vs Excalidraw MCP. Sees what you draw back: whiteboard-mcp yes (Short list of your changes + notes), Excalidraw MCP part (Re-reads the whole scene). Agent screenshots its own board: whiteboard-mcp yes, Excalidraw MCP no. Edit one shape in place: whiteboard-mcp yes (Arrows stay attached), Excalidraw MCP part (Re-sends from a checkpoint). Boards outlive the chat: whiteboard-mcp yes (Reopen by name, search the text), Excalidraw MCP no (Tied to the chat). Works in any MCP client: whiteboard-mcp yes (Plus a plain CLI), Excalidraw MCP no (Only hosts with MCP Apps). Mermaid to hand-drawn: whiteboard-mcp yes, Excalidraw MCP no. Animated camera moves: whiteboard-mcp no, Excalidraw MCP yes. Zero install (hosted URL): whiteboard-mcp no (One npx line, runs locally), Excalidraw MCP yes.">
 <title>whiteboard-mcp vs Excalidraw MCP. Sees what you draw back: whiteboard-mcp yes (Short list of your changes + notes), Excalidraw MCP part (Re-reads the whole scene). Agent screenshots its own board: whiteboard-mcp yes, Excalidraw MCP no. Edit one shape in place: whiteboard-mcp yes (Arrows stay attached), Excalidraw MCP part (Re-sends from a checkpoint). Boards outlive the chat: whiteboard-mcp yes (Reopen by name, search the text), Excalidraw MCP no (Tied to the chat). Works in any MCP client: whiteboard-mcp yes (Plus a plain CLI), Excalidraw MCP no (Only hosts with MCP Apps). Mermaid to hand-drawn: whiteboard-mcp yes, Excalidraw MCP no. Animated camera moves: whiteboard-mcp no, Excalidraw MCP yes. Zero install (hosted URL): whiteboard-mcp no (One npx line, runs locally), Excalidraw MCP yes.</title>
 <style>
 .serif{font-family:'New York','Iowan Old Style',ui-serif,Georgia,serif}
 .sans{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',Helvetica,Arial,sans-serif}
 .mono{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace}
 </style>
-<rect x="1" y="1" width="1598" height="960" rx="40" fill="#202020" stroke="#363636" stroke-width="2"/>
-<text x="80" y="120" class="serif" font-size="60" font-weight="700" fill="#efeee6" text-anchor="start">whiteboard-mcp vs Excalidraw MCP</text>
-<text x="640" y="196" class="sans" font-size="26" font-weight="700" fill="#efeee6" text-anchor="start">whiteboard-mcp</text>
-<text x="1120" y="196" class="sans" font-size="26" font-weight="700" fill="#85857f" text-anchor="start">Excalidraw MCP</text>
-<path d="M80 230H1520" stroke="#363636" stroke-width="2"/>
-<text x="80" y="281" class="sans" font-size="27" font-weight="400" fill="#efeee6" text-anchor="start">Sees what you draw back</text>
-<g transform="translate(657 272)"><circle r="17" fill="#51cf66"/><path d="M-8 0l5 5 10-10" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></g>
-<text x="692" y="280" class="sans" font-size="23" font-weight="400" fill="#b8b8b0" text-anchor="start">Short list of your changes + notes</text>
-<g transform="translate(1137 272)"><circle r="17" fill="none" stroke="#ffa94d" stroke-width="3.2"/><path d="M0 -17a17 17 0 0 1 0 34z" fill="#ffa94d"/></g>
-<text x="1172" y="280" class="sans" font-size="23" font-weight="400" fill="#b8b8b0" text-anchor="start">Re-reads the whole scene</text>
-<path d="M80 314H1520" stroke="#363636" stroke-width="2"/>
-<text x="80" y="365" class="sans" font-size="27" font-weight="400" fill="#efeee6" text-anchor="start">Agent screenshots its own board</text>
-<g transform="translate(657 356)"><circle r="17" fill="#51cf66"/><path d="M-8 0l5 5 10-10" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></g>
+<rect x="1" y="1" width="1598" height="854" rx="40" fill="#202020" stroke="#363636" stroke-width="2"/>
+<text x="640" y="90" class="sans" font-size="26" font-weight="700" fill="#efeee6" text-anchor="start">whiteboard-mcp</text>
+<text x="1120" y="90" class="sans" font-size="26" font-weight="700" fill="#85857f" text-anchor="start">Excalidraw MCP</text>
+<path d="M80 124H1520" stroke="#363636" stroke-width="2"/>
+<text x="80" y="175" class="sans" font-size="27" font-weight="400" fill="#efeee6" text-anchor="start">Sees what you draw back</text>
+<g transform="translate(657 166)"><circle r="17" fill="#51cf66"/><path d="M-8 0l5 5 10-10" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></g>
+<text x="692" y="174" class="sans" font-size="23" font-weight="400" fill="#b8b8b0" text-anchor="start">Short list of your changes + notes</text>
+<g transform="translate(1137 166)"><circle r="17" fill="none" stroke="#ffa94d" stroke-width="3.2"/><path d="M0 -17a17 17 0 0 1 0 34z" fill="#ffa94d"/></g>
+<text x="1172" y="174" class="sans" font-size="23" font-weight="400" fill="#b8b8b0" text-anchor="start">Re-reads the whole scene</text>
+<path d="M80 208H1520" stroke="#363636" stroke-width="2"/>
+<text x="80" y="259" class="sans" font-size="27" font-weight="400" fill="#efeee6" text-anchor="start">Agent screenshots its own board</text>
+<g transform="translate(657 250)"><circle r="17" fill="#51cf66"/><path d="M-8 0l5 5 10-10" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></g>
 
-<g transform="translate(1137 356)"><circle r="17" fill="none" stroke="#5a5a56" stroke-width="3.2"/><path d="M-7 0h14" stroke="#5a5a56" stroke-width="3.6" stroke-linecap="round"/></g>
+<g transform="translate(1137 250)"><circle r="17" fill="none" stroke="#5a5a56" stroke-width="3.2"/><path d="M-7 0h14" stroke="#5a5a56" stroke-width="3.6" stroke-linecap="round"/></g>
 
-<path d="M80 398H1520" stroke="#363636" stroke-width="2"/>
-<text x="80" y="449" class="sans" font-size="27" font-weight="400" fill="#efeee6" text-anchor="start">Edit one shape in place</text>
-<g transform="translate(657 440)"><circle r="17" fill="#51cf66"/><path d="M-8 0l5 5 10-10" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></g>
-<text x="692" y="448" class="sans" font-size="23" font-weight="400" fill="#b8b8b0" text-anchor="start">Arrows stay attached</text>
-<g transform="translate(1137 440)"><circle r="17" fill="none" stroke="#ffa94d" stroke-width="3.2"/><path d="M0 -17a17 17 0 0 1 0 34z" fill="#ffa94d"/></g>
-<text x="1172" y="448" class="sans" font-size="23" font-weight="400" fill="#b8b8b0" text-anchor="start">Re-sends from a checkpoint</text>
-<path d="M80 482H1520" stroke="#363636" stroke-width="2"/>
-<text x="80" y="533" class="sans" font-size="27" font-weight="400" fill="#efeee6" text-anchor="start">Boards outlive the chat</text>
-<g transform="translate(657 524)"><circle r="17" fill="#51cf66"/><path d="M-8 0l5 5 10-10" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></g>
-<text x="692" y="532" class="sans" font-size="23" font-weight="400" fill="#b8b8b0" text-anchor="start">Reopen by name, search the text</text>
-<g transform="translate(1137 524)"><circle r="17" fill="none" stroke="#5a5a56" stroke-width="3.2"/><path d="M-7 0h14" stroke="#5a5a56" stroke-width="3.6" stroke-linecap="round"/></g>
-<text x="1172" y="532" class="sans" font-size="23" font-weight="400" fill="#b8b8b0" text-anchor="start">Tied to the chat</text>
-<path d="M80 566H1520" stroke="#363636" stroke-width="2"/>
-<text x="80" y="617" class="sans" font-size="27" font-weight="400" fill="#efeee6" text-anchor="start">Works in any MCP client</text>
-<g transform="translate(657 608)"><circle r="17" fill="#51cf66"/><path d="M-8 0l5 5 10-10" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></g>
-<text x="692" y="616" class="sans" font-size="23" font-weight="400" fill="#b8b8b0" text-anchor="start">Plus a plain CLI</text>
-<g transform="translate(1137 608)"><circle r="17" fill="none" stroke="#5a5a56" stroke-width="3.2"/><path d="M-7 0h14" stroke="#5a5a56" stroke-width="3.6" stroke-linecap="round"/></g>
-<text x="1172" y="616" class="sans" font-size="23" font-weight="400" fill="#b8b8b0" text-anchor="start">Only hosts with MCP Apps</text>
-<path d="M80 650H1520" stroke="#363636" stroke-width="2"/>
-<text x="80" y="701" class="sans" font-size="27" font-weight="400" fill="#efeee6" text-anchor="start">Mermaid to hand-drawn</text>
-<g transform="translate(657 692)"><circle r="17" fill="#51cf66"/><path d="M-8 0l5 5 10-10" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></g>
+<path d="M80 292H1520" stroke="#363636" stroke-width="2"/>
+<text x="80" y="343" class="sans" font-size="27" font-weight="400" fill="#efeee6" text-anchor="start">Edit one shape in place</text>
+<g transform="translate(657 334)"><circle r="17" fill="#51cf66"/><path d="M-8 0l5 5 10-10" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></g>
+<text x="692" y="342" class="sans" font-size="23" font-weight="400" fill="#b8b8b0" text-anchor="start">Arrows stay attached</text>
+<g transform="translate(1137 334)"><circle r="17" fill="none" stroke="#ffa94d" stroke-width="3.2"/><path d="M0 -17a17 17 0 0 1 0 34z" fill="#ffa94d"/></g>
+<text x="1172" y="342" class="sans" font-size="23" font-weight="400" fill="#b8b8b0" text-anchor="start">Re-sends from a checkpoint</text>
+<path d="M80 376H1520" stroke="#363636" stroke-width="2"/>
+<text x="80" y="427" class="sans" font-size="27" font-weight="400" fill="#efeee6" text-anchor="start">Boards outlive the chat</text>
+<g transform="translate(657 418)"><circle r="17" fill="#51cf66"/><path d="M-8 0l5 5 10-10" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></g>
+<text x="692" y="426" class="sans" font-size="23" font-weight="400" fill="#b8b8b0" text-anchor="start">Reopen by name, search the text</text>
+<g transform="translate(1137 418)"><circle r="17" fill="none" stroke="#5a5a56" stroke-width="3.2"/><path d="M-7 0h14" stroke="#5a5a56" stroke-width="3.6" stroke-linecap="round"/></g>
+<text x="1172" y="426" class="sans" font-size="23" font-weight="400" fill="#b8b8b0" text-anchor="start">Tied to the chat</text>
+<path d="M80 460H1520" stroke="#363636" stroke-width="2"/>
+<text x="80" y="511" class="sans" font-size="27" font-weight="400" fill="#efeee6" text-anchor="start">Works in any MCP client</text>
+<g transform="translate(657 502)"><circle r="17" fill="#51cf66"/><path d="M-8 0l5 5 10-10" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></g>
+<text x="692" y="510" class="sans" font-size="23" font-weight="400" fill="#b8b8b0" text-anchor="start">Plus a plain CLI</text>
+<g transform="translate(1137 502)"><circle r="17" fill="none" stroke="#5a5a56" stroke-width="3.2"/><path d="M-7 0h14" stroke="#5a5a56" stroke-width="3.6" stroke-linecap="round"/></g>
+<text x="1172" y="510" class="sans" font-size="23" font-weight="400" fill="#b8b8b0" text-anchor="start">Only hosts with MCP Apps</text>
+<path d="M80 544H1520" stroke="#363636" stroke-width="2"/>
+<text x="80" y="595" class="sans" font-size="27" font-weight="400" fill="#efeee6" text-anchor="start">Mermaid to hand-drawn</text>
+<g transform="translate(657 586)"><circle r="17" fill="#51cf66"/><path d="M-8 0l5 5 10-10" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></g>
 
-<g transform="translate(1137 692)"><circle r="17" fill="none" stroke="#5a5a56" stroke-width="3.2"/><path d="M-7 0h14" stroke="#5a5a56" stroke-width="3.6" stroke-linecap="round"/></g>
+<g transform="translate(1137 586)"><circle r="17" fill="none" stroke="#5a5a56" stroke-width="3.2"/><path d="M-7 0h14" stroke="#5a5a56" stroke-width="3.6" stroke-linecap="round"/></g>
 
-<path d="M80 734H1520" stroke="#363636" stroke-width="2"/>
-<text x="80" y="785" class="sans" font-size="27" font-weight="400" fill="#efeee6" text-anchor="start">Animated camera moves</text>
-<g transform="translate(657 776)"><circle r="17" fill="none" stroke="#5a5a56" stroke-width="3.2"/><path d="M-7 0h14" stroke="#5a5a56" stroke-width="3.6" stroke-linecap="round"/></g>
+<path d="M80 628H1520" stroke="#363636" stroke-width="2"/>
+<text x="80" y="679" class="sans" font-size="27" font-weight="400" fill="#efeee6" text-anchor="start">Animated camera moves</text>
+<g transform="translate(657 670)"><circle r="17" fill="none" stroke="#5a5a56" stroke-width="3.2"/><path d="M-7 0h14" stroke="#5a5a56" stroke-width="3.6" stroke-linecap="round"/></g>
 
-<g transform="translate(1137 776)"><circle r="17" fill="#51cf66"/><path d="M-8 0l5 5 10-10" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></g>
+<g transform="translate(1137 670)"><circle r="17" fill="#51cf66"/><path d="M-8 0l5 5 10-10" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></g>
 
-<path d="M80 818H1520" stroke="#363636" stroke-width="2"/>
-<text x="80" y="869" class="sans" font-size="27" font-weight="400" fill="#efeee6" text-anchor="start">Zero install (hosted URL)</text>
-<g transform="translate(657 860)"><circle r="17" fill="none" stroke="#5a5a56" stroke-width="3.2"/><path d="M-7 0h14" stroke="#5a5a56" stroke-width="3.6" stroke-linecap="round"/></g>
-<text x="692" y="868" class="sans" font-size="23" font-weight="400" fill="#b8b8b0" text-anchor="start">One npx line, runs locally</text>
-<g transform="translate(1137 860)"><circle r="17" fill="#51cf66"/><path d="M-8 0l5 5 10-10" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></g>
+<path d="M80 712H1520" stroke="#363636" stroke-width="2"/>
+<text x="80" y="763" class="sans" font-size="27" font-weight="400" fill="#efeee6" text-anchor="start">Zero install (hosted URL)</text>
+<g transform="translate(657 754)"><circle r="17" fill="none" stroke="#5a5a56" stroke-width="3.2"/><path d="M-7 0h14" stroke="#5a5a56" stroke-width="3.6" stroke-linecap="round"/></g>
+<text x="692" y="762" class="sans" font-size="23" font-weight="400" fill="#b8b8b0" text-anchor="start">One npx line, runs locally</text>
+<g transform="translate(1137 754)"><circle r="17" fill="#51cf66"/><path d="M-8 0l5 5 10-10" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></g>
 
 </svg>

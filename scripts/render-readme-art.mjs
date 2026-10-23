@@ -75,12 +75,13 @@ function features(t) {
     ['Tiny', ['One runtime dependency and about', '7 KB of tool schema per turn.'], VIOLET, ICONS.feather],
   ];
   const label = `Why whiteboard-mcp: ${items.map(([h, d]) => `${h}: ${d.join(' ')}`).join(' ')}`;
-  const tw = 456, th = 300, gx = 32, x0 = 80, y0 = 170;
+  const tw = 456, th = 300, gx = 32, x0 = 80, y0 = 64;
+  const height = y0 * 2 + th * 2 + gx;
   const tiles = items.map(([h, d, c, ic], i) => {
     const x = x0 + (i % 3) * (tw + gx), y = y0 + Math.floor(i / 3) * (th + gx);
     return [tile(x, y, tw, th, t), badge(x + 40, y + 40, c, ic), text(x + 40, y + 170, h, { size: 34, cls: 'serif', fill: t.head, weight: 700 }), lines(x + 40, y + 218, d, { size: 24, fill: t.body }, 35)].join('\n');
   });
-  return svg(850, label, [card(850, t), text(80, 120, 'Why whiteboard-mcp', { size: 60, cls: 'serif', fill: t.head, weight: 700 }), ...tiles].join('\n'));
+  return svg(height, label, [card(height, t), ...tiles].join('\n'));
 }
 
 function steps(t) {
@@ -90,7 +91,8 @@ function steps(t) {
     ['Ask for a drawing', '"Draw this repo for me"'],
   ];
   const label = `Get started in a minute: ${items.map(([h, s], i) => `${i + 1}. ${h} (${s})`).join(' ')}`;
-  const tw = 456, th = 300, gx = 32, x0 = 80, y0 = 170;
+  const tw = 456, th = 300, gx = 32, x0 = 80, y0 = 64;
+  const height = y0 * 2 + th;
   const tiles = items.map(([h, s], i) => {
     const x = x0 + i * (tw + gx), y = y0;
     return [
@@ -101,7 +103,7 @@ function steps(t) {
       text(x + 40, y + 250, h, { size: 32, fill: t.head, weight: 700 }),
     ].join('\n');
   });
-  return svg(540, label, [card(540, t), text(80, 120, 'Get started in a minute', { size: 60, cls: 'serif', fill: t.head, weight: 700 }), ...tiles].join('\n'));
+  return svg(height, label, [card(height, t), ...tiles].join('\n'));
 }
 
 function compare(t) {
@@ -121,13 +123,12 @@ function compare(t) {
     if (v === 'part') return `<g transform="translate(${x} ${y})"><circle r="17" fill="none" stroke="${ORANGE}" stroke-width="3.2"/><path d="M0 -17a17 17 0 0 1 0 34z" fill="${ORANGE}"/></g>`;
     return `<g transform="translate(${x} ${y})"><circle r="17" fill="none" stroke="${t.no}" stroke-width="3.2"/><path d="M-7 0h14" stroke="${t.no}" stroke-width="3.6" stroke-linecap="round"/></g>`;
   };
-  const top = 230, rh = 84, cA = 640, cB = 1120;
+  const top = 124, rh = 84, cA = 640, cB = 1120;
   const h = top + rows.length * rh + 60;
   const body = [
     card(h, t),
-    text(80, 120, 'whiteboard-mcp vs Excalidraw MCP', { size: 60, cls: 'serif', fill: t.head, weight: 700 }),
-    text(cA, 196, 'whiteboard-mcp', { size: 26, fill: t.head, weight: 700 }),
-    text(cB, 196, 'Excalidraw MCP', { size: 26, fill: t.faint, weight: 700 }),
+    text(cA, 90, 'whiteboard-mcp', { size: 26, fill: t.head, weight: 700 }),
+    text(cB, 90, 'Excalidraw MCP', { size: 26, fill: t.faint, weight: 700 }),
     ...rows.map(([f, a, an, b, bn], i) => {
       const y = top + i * rh, mid = y + rh / 2;
       return [
