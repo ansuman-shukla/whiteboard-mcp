@@ -54,16 +54,54 @@ function logo(x, y, s) {
 </g>`;
 }
 
+// A small "chat beside the board" window: the agent's boxes, your red circle and note.
+function heroBoard(x, y, t) {
+  const w = 700, h = 500, chatW = 210, top = 52;
+  const bar = (bx, by, bw, c = t.line) => `<rect x="${bx}" y="${by}" width="${bw}" height="12" rx="6" fill="${c}"/>`;
+  const box = (bx, by, bw, fill, label) =>
+    `<rect x="${bx}" y="${by}" width="${bw}" height="62" rx="12" fill="${fill}" stroke="#1e1e1e" stroke-width="2.5"/>` +
+    text(bx + bw / 2, by + 39, label, { size: 22, fill: '#1e1e1e', weight: 600, anchor: 'middle' });
+  const arrow = (d, dashed = false) =>
+    `<path d="${d}" fill="none" stroke="${t.head}" stroke-width="2.5" stroke-linecap="round"${dashed ? ' stroke-dasharray="8 7"' : ''}/>`;
+  const bx = x + chatW + 40;
+  return `<g>
+  <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="28" fill="${t.tile}" stroke="${t.line}" stroke-width="2"/>
+  <path d="M${x} ${y + top}H${x + w}" stroke="${t.line}" stroke-width="2"/>
+  ${[0, 1, 2].map((i) => `<circle cx="${x + 30 + i * 22}" cy="${y + 26}" r="7" fill="${t.line}"/>`).join('')}
+  <path d="M${x + chatW} ${y + top}V${y + h}" stroke="${t.line}" stroke-width="2"/>
+  <rect x="${x + 70}" y="${y + 84}" width="120" height="44" rx="14" fill="${BLUE}"/>
+  ${bar(x + 24, y + 156, 150)}${bar(x + 24, y + 178, 110)}
+  <rect x="${x + 24}" y="${y + 210}" width="132" height="30" rx="8" fill="none" stroke="${VIOLET}" stroke-width="2"/>${bar(x + 36, y + 219, 90, VIOLET)}
+  ${bar(x + 24, y + 264, 160)}${bar(x + 24, y + 286, 120)}
+  <rect x="${x + 70}" y="${y + 324}" width="120" height="44" rx="14" fill="${BLUE}"/>
+  <rect x="${x + 24}" y="${y + 400}" width="132" height="30" rx="8" fill="none" stroke="${VIOLET}" stroke-width="2"/>${bar(x + 36, y + 409, 90, VIOLET)}
+  <rect x="${x + 16}" y="${y + h - 56}" width="${chatW - 32}" height="40" rx="12" fill="none" stroke="${t.line}" stroke-width="2"/>
+  ${box(bx, y + 100, 120, '#a5d8ff', 'API')}
+  ${box(bx + 230, y + 100, 150, '#a5d8ff', 'Orders')}
+  ${box(bx, y + 280, 120, '#96f2d7', 'DB')}
+  ${box(bx + 230, y + 280, 150, '#ffd8a8', 'Queue')}
+  ${arrow(`M${bx + 122} ${y + 131}H${bx + 226}M${bx + 214} ${y + 123}l12 8-12 8`)}
+  ${arrow(`M${bx + 260} ${y + 164}L${bx + 90} ${y + 276}M${bx + 92} ${y + 262}l-2 14 14-2`)}
+  ${arrow(`M${bx + 305} ${y + 164}V${y + 276}M${bx + 297} ${y + 266}l8 10 8-10`, true)}
+  <path d="M${bx + 410} ${y + 304}c4 -46 -60 -66 -128 -60c-70 6 -110 36 -100 74c10 40 80 54 150 46c60 -8 92 -34 76 -66" fill="none" stroke="#e03131" stroke-width="3.5" stroke-linecap="round"/>
+  <g transform="rotate(-3 ${bx + 250} ${y + 420})"><rect x="${bx + 150}" y="${y + 388}" width="236" height="62" rx="6" fill="#ffec99"/>${text(bx + 268, y + 427, 'what if it fails?', { size: 22, fill: '#5c4a00', weight: 600, anchor: 'middle' })}</g>
+  <path transform="translate(${bx + 400} ${y + 350})" d="M0 0l22 14-10 2 6 11-5 3-6-11-7 7z" fill="${t.head}" stroke="${t.tile}" stroke-width="2" stroke-linejoin="round"/>
+</g>`;
+}
+
 function hero(t) {
   const label = 'whiteboard-mcp: a live whiteboard your coding agent draws on, and you draw back. Works with Claude Code, Codex, Cursor, Gemini CLI, VS Code and any MCP client.';
-  return svg(440, label, [
-    logo(8, 20, 112),
-    text(150, 98, 'whiteboard-mcp', { size: 64, cls: 'serif', fill: t.head, weight: 700 }),
-    text(4, 220, 'A live whiteboard your coding agent', { size: 60, fill: t.head, weight: 600 }),
-    text(4, 296, 'draws on. You draw back.', { size: 60, fill: t.faint, weight: 600 }),
-    `<rect x="4" y="340" width="300" height="76" rx="38" fill="${ORANGE}"/><rect x="4" y="340" width="300" height="72" rx="36" fill="#ffb86b"/>`,
-    text(154, 389, 'Get started  →', { size: 30, fill: '#1c1c1a', weight: 700, anchor: 'middle' }),
-    text(340, 389, 'Claude Code · Codex · Cursor · Gemini CLI · VS Code · any MCP client', { size: 26, fill: t.faint }),
+  return svg(560, label, [
+    logo(40, 64, 104),
+    text(170, 136, 'whiteboard-mcp', { size: 62, cls: 'serif', fill: t.head, weight: 700 }),
+    text(40, 252, 'A live whiteboard your', { size: 56, fill: t.head, weight: 600 }),
+    text(40, 322, 'coding agent draws on.', { size: 56, fill: t.head, weight: 600 }),
+    text(40, 392, 'You draw back.', { size: 56, fill: t.faint, weight: 600 }),
+    `<rect x="40" y="430" width="290" height="74" rx="37" fill="${ORANGE}"/><rect x="40" y="430" width="290" height="70" rx="35" fill="#ffb86b"/>`,
+    text(185, 476, 'Get started  →', { size: 29, fill: '#1c1c1a', weight: 700, anchor: 'middle' }),
+    text(360, 464, 'Claude Code · Codex · Cursor', { size: 23, fill: t.faint }),
+    text(360, 496, 'Gemini CLI · VS Code · any MCP client', { size: 23, fill: t.faint }),
+    heroBoard(860, 30, t),
   ].join('\n'));
 }
 
