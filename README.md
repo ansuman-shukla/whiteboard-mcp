@@ -46,15 +46,13 @@ More to try:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/media/readme/steps-dark.svg">
-  <img src="docs/media/readme/steps-light.svg" width="100%" alt="Get started in a minute: 1. Clone and build. 2. Add it to your agent. 3. Ask for a drawing.">
+  <img src="docs/media/readme/steps-light.svg" width="100%" alt="Get started in a minute: 1. Add it to your agent with one npx line. 2. Start a new chat. 3. Ask for a drawing.">
 </picture>
 
 Requires Node.js 20+.
 
 ```sh
-git clone https://github.com/ansuman-shukla/whiteboard-mcp && cd whiteboard-mcp
-npm install && npm run build
-claude mcp add whiteboard --scope user -- node "$PWD/dist/cli.js"
+claude mcp add whiteboard --scope user -- npx -y @ansuman-shukla/whiteboard-mcp
 ```
 
 Codex, Cursor, Gemini CLI, OpenCode, Devin, VS Code, Claude Desktop and agents without MCP: see [client setup](docs/clients.md). For boards in a tab beside the chat, install the [IDE panel](docs/ide-panel.md). The bundled [skill](docs/clients.md#the-skill-recommended-for-every-agent) teaches the agent when a drawing helps.
