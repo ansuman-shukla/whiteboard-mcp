@@ -144,8 +144,43 @@ function compare(t) {
   return svg(h, label, body.join('\n'));
 }
 
+// 1280x640 link preview (GitHub social preview, og:image). Link previews need a PNG:
+// npx playwright screenshot --viewport-size=1280,640 file://$PWD/docs/media/readme/social.svg docs/media/social-preview.png
+function social(t) {
+  const w = 1280, h = 640;
+  const label = 'whiteboard-mcp: a local Excalidraw whiteboard MCP server. Your coding agent draws, you draw back.';
+  const chips = ['Claude Code', 'Codex', 'Cursor', 'Gemini CLI', 'VS Code', 'Windsurf'];
+  let x = 96;
+  const chipEls = chips.map((c) => {
+    const cw = c.length * 14 + 44;
+    const el = `<rect x="${x}" y="488" width="${cw}" height="52" rx="26" fill="${t.tile}" stroke="${t.line}" stroke-width="2"/>${text(x + cw / 2, 522, c, { size: 24, fill: t.body, anchor: 'middle' })}`;
+    x += cw + 14;
+    return el;
+  });
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(label)}">\n<title>${esc(label)}</title>\n${STYLE}\n${[
+    `<rect width="${w}" height="${h}" fill="${t.card}"/>`,
+    logo(96, 96, 112),
+    text(236, 176, 'whiteboard-mcp', { size: 80, cls: 'serif', fill: t.head, weight: 700 }),
+    text(96, 300, 'A live whiteboard your coding agent', { size: 52, fill: t.head, weight: 600 }),
+    text(96, 366, 'draws on. You draw back.', { size: 52, fill: t.faint, weight: 600 }),
+    text(96, 440, 'Local, offline Excalidraw MCP server · free and open source', { size: 30, fill: t.body }),
+    ...chipEls,
+    `<g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="4">
+  <path d="M992 84c40-2 118-1 164 1 3 22 2 52-1 74-46 2-122 2-163 0-2-24-2-52 0-75z" stroke="${BLUE}" fill="${BLUE}" fill-opacity="0.12"/>
+  <path d="M1012 286c44-1 120 0 162 2 2 24 2 50 0 72-44 3-118 2-162 0-3-22-3-50 0-74z" stroke="${VIOLET}" fill="${VIOLET}" fill-opacity="0.12"/>
+  <path d="M1072 162c-6 40 2 82 16 120" stroke="${t.head}"/>
+  <path d="M1074 266l14 18 10-22" stroke="${t.head}"/>
+  <path d="M1220 322c4-46-60-70-126-66-70 4-114 34-110 72 4 40 70 60 136 54 58-6 98-28 100-60" stroke="${ORANGE}" stroke-width="5"/>
+</g>`,
+    text(1074, 133, 'API', { size: 30, fill: t.head, weight: 600, anchor: 'middle' }),
+    text(1093, 334, 'Queue', { size: 30, fill: t.head, weight: 600, anchor: 'middle' }),
+    text(1210, 420, 'what if it fails?', { size: 24, fill: ORANGE, weight: 600, anchor: 'end' }),
+  ].join('\n')}\n</svg>\n`;
+}
+
 mkdirSync(OUT, { recursive: true });
 for (const [name, render] of Object.entries({ hero, features, steps, compare })) {
   for (const [theme, t] of Object.entries(THEMES)) writeFileSync(join(OUT, `${name}-${theme}.svg`), render(t));
 }
-console.log(`wrote 8 cards to ${OUT}`);
+writeFileSync(join(OUT, 'social.svg'), social(THEMES.light));
+console.log(`wrote 9 cards to ${OUT}`);
