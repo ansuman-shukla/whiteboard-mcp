@@ -1,4 +1,4 @@
-# whiteboard-mcp
+# Whiteboard MCP
 
 A lightweight local Excalidraw canvas that coding agents draw on live, side by side with a human, to explain things. The human can draw back and leave notes; the agent reads those changes. Exposed as an MCP stdio server (any MCP client) and as a plain CLI (`whiteboard-mcp call <tool> '<json>'`) for harnesses without MCP.
 
