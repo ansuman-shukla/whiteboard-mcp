@@ -664,11 +664,13 @@ describe('MCP Apps (board inline in the chat)', () => {
     expect(snapshot?.canvas.elements.map((e) => e.id)).toContain('r1');
     expect((await call(client, 'canvas_read')).text).toContain('1 viewer');
 
-    // The agent draws: the next poll brings it to the view.
+    // The agent draws: the view's polls bring it (a poll returns on any message, so keep polling like the view does).
     const polling = view(client, { view: 'v1', board, wait: 5000 });
     await call(client, 'canvas_draw', { elements: [{ id: 'r2', type: 'rectangle', x: 200, y: 0, label: 'Two' }] });
-    const drawn = (await polling).structuredContent?.messages?.filter((m) => m.t === 'elements') ?? [];
-    expect(drawn.flatMap((m) => (m.elements as Array<{ id: string }>).map((e) => e.id))).toContain('r2');
+    const drawnIds = (r: ViewResult) => (r.structuredContent?.messages ?? []).filter((m) => m.t === 'elements').flatMap((m) => (m.elements as Array<{ id: string }>).map((e) => e.id));
+    const seen = drawnIds(await polling);
+    for (const deadline = Date.now() + 5000; !seen.includes('r2') && Date.now() < deadline; ) seen.push(...drawnIds(await view(client, { view: 'v1', board, wait: 1000 })));
+    expect(seen).toContain('r2');
 
     // The human draws in the view: the agent reads it.
     const sent = await view(client, { view: 'v1', board, send: [{ t: 'elements', elements: [humanRect('human1')] }] });
