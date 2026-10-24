@@ -159,8 +159,8 @@ export class CanvasClient {
   }
 
   /** Asks the IDE panel host of the chat's window (`host`) or workspace to show the board. False when none qualifies. */
-  async show(id: string, workspace: string, host?: string): Promise<boolean> {
-    const request: ShowRequest = { workspace, ...(host ? { host } : {}) };
+  async show(id: string, workspace: string, host?: string, wait = false): Promise<boolean> {
+    const request: ShowRequest = { workspace, ...(host ? { host } : {}), ...(wait ? { wait } : {}) };
     try {
       await this.call('POST', API.show(id), request, 8000);
       return true;

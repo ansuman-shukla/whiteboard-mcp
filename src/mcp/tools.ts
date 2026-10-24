@@ -1,10 +1,13 @@
-import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, extname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { CanvasClient, CanvasError } from '../canvas/client.js';
 import { describeChanges, describeScene } from '../shared/describe.js';
 import { ELEMENT_SPEC_FIELDS, buildElements, deleteElements, type ElementSpec } from '../shared/elements.js';
 import type { CanvasSummary, ChangesResponse, ExElement, MermaidResult, SavedSummary, ScreenshotResult } from '../shared/protocol.js';
+import { BOARD_RESULT_META, BOARD_SHOWN_META, BOARD_TOOL_META } from './apps.js';
+import { editorWindow, type EditorWindow } from './editor.js';
 import { closestBoards, findBoard, whereFrom } from './find.js';
 import { GUIDE } from './guide.js';
 import { openViewer } from './open.js';
@@ -14,6 +17,7 @@ import type { CanvasRef, Session } from './session.js';
 export type Content = { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string };
 export interface ToolResult {
   content: Content[];
+  _meta?: Record<string, unknown>;
   isError?: boolean;
 }
 type Args = Record<string, unknown>;
@@ -25,6 +29,7 @@ export interface Tool {
   run(args: Args, ctx: ChatContext): Promise<ToolResult | string>;
   /** canvas_read/canvas_guide don't get the "human changed things" footer. */
   quiet?: boolean;
+  _meta?: Record<string, unknown>;
 }
 
 export class ToolError extends Error {}
@@ -38,8 +43,19 @@ export class ToolContext {
   private client?: Promise<CanvasClient>;
   /** Boards already created this process, with their current titles. */
   readonly titles = new Map<string, string>();
+  /** The client renders MCP Apps: canvas_open shows the board inline in the chat, so no browser or panel is opened. */
+  apps = false;
+  /** When canvas_open last showed each board inline; its view needs a moment to connect. */
+  readonly shownInline = new Map<string, number>();
+
+  private window?: Promise<EditorWindow>;
 
   constructor(readonly session: Session, private readonly connectOpts: Parameters<typeof CanvasClient.connect>[0] = {}) {}
+
+  /** The editor window the agent runs in, looked up once (it may take a walk up the process tree). */
+  editor(): Promise<EditorWindow> {
+    return (this.window ??= editorWindow());
+  }
 
   connect(): Promise<CanvasClient> {
     this.client ??= CanvasClient.connect({ autoStart: true, ...this.connectOpts }).catch((err: unknown) => {
@@ -60,20 +76,37 @@ export class ToolContext {
   }
 }
 
-const IDE_ENV = ['WINDSURF_EXT_HOST_PID', 'VSCODE_PID', 'VSCODE_IPC_HOOK_CLI', 'CURSOR_TRACE_ID'];
-/** Agents running inside an editor should get the board in a panel, never a separate browser window. */
-const insideIde = (): boolean => IDE_ENV.some((k) => process.env[k]) || process.env.TERM_PROGRAM === 'vscode';
+/** Where boards go when nobody can see them in this editor: how to get the panel. */
+const PANEL_DOCS = 'https://github.com/ansuman-shukla/whiteboard-mcp/blob/main/docs/ide-panel.md';
 
-/**
- * The editor window this agent runs in, as the `hostId` its panel host announces, so the board opens
- * beside this chat and not in another window: `WHITEBOARD_HOST_ID` when a host sets it explicitly, else
- * Windsurf/Devin Desktop's `WINDSURF_EXT_HOST_PID` (the extension host that started the chat, which is
- * the process a panel extension runs in).
- */
-export function hostHint(env: NodeJS.ProcessEnv = process.env): string | undefined {
-  return env.WHITEBOARD_HOST_ID?.trim() || env.WINDSURF_EXT_HOST_PID?.trim() || undefined;
+/** The panel extension shipped in this package (dist/vscode), which the agent can install with the human's OK. */
+function bundledExtension(): string | undefined {
+  try {
+    const dir = fileURLToPath(new URL('../vscode/', import.meta.url));
+    const file = readdirSync(dir).find((name) => name.endsWith('.vsix'));
+    return file && join(dir, file);
+  } catch {
+    return undefined;
+  }
 }
+
+function noPanelNote(): string {
+  const vsix = bundledExtension();
+  const install = vsix
+    ? `Offer to set it up: with the human's OK, run \`code --install-extension "${vsix}"\` (\`cursor\`, \`windsurf\`, \`kiro\` or \`antigravity\` instead of \`code\` in those editors; if your sandbox blocks it, give the human the command), then call canvas_open again. No restart needed.`
+    : `Ask the human to install it (${PANEL_DOCS}), then call canvas_open again.`;
+  return `No whiteboard panel is connected in this editor, so the human can't see the board yet. The Whiteboard MCP editor extension shows boards in a tab beside the chat. ${install} Do not open the board in a browser or preview tool yourself.`;
+}
+const SHOWN_BESIDE = 'Shown to the human beside the chat.';
+/** The Claude desktop app, whose Browser pane shows a page beside the chat. */
+const claudeDesktop = (): boolean => process.env.CLAUDE_CODE_ENTRYPOINT === 'claude-desktop';
 const SHOW_WAIT_MS = 8000;
+const INLINE_GRACE_MS = 30_000;
+/** WHITEBOARD_OPEN set to a real opener (browser, a command) wins over the inline board. */
+const explicitOpener = (): boolean => {
+  const mode = process.env.WHITEBOARD_OPEN?.trim();
+  return !!mode && mode !== 'auto' && mode !== 'none';
+};
 
 export class ChatContext {
   constructor(private readonly base: ToolContext, readonly chat: string) {}
@@ -109,16 +142,48 @@ export class ChatContext {
     return viewers > 0 ? '' : (await this.show(client, ref)).note;
   }
 
+  /**
+   * canvas_open: an IDE panel beside the chat first, even in MCP Apps clients (VS Code's own agent),
+   * else the board inline in an MCP Apps chat, else as reveal.
+   */
+  async open(client: CanvasClient, ref: CanvasRef, viewers: number): Promise<{ note: string; panel: boolean; inline: boolean }> {
+    if (!this.inlineCapable) return { note: await this.reveal(client, ref, viewers), panel: false, inline: false };
+    if (await this.panel(client, ref)) return { note: SHOWN_BESIDE, panel: true, inline: false };
+    const now = Date.now();
+    for (const [id, at] of this.base.shownInline) if (now - at > INLINE_GRACE_MS) this.base.shownInline.delete(id);
+    this.base.shownInline.set(ref.id, now);
+    const pane = claudeDesktop() ? ` To keep it beside the chat, also open it in your built-in Browser pane (never an external browser): ${client.viewerUrl(ref.id)}` : '';
+    return { note: `Shown inline in the chat.${pane}`, panel: false, inline: true };
+  }
+
+  /** The client renders MCP Apps and no opener is configured: canvas_open's result shows the board inline. */
+  private get inlineCapable(): boolean {
+    return this.base.apps && !explicitOpener();
+  }
+
+  /** The IDE panel host of this chat's window, else of its folder, shows the board. */
+  private async panel(client: CanvasClient, ref: CanvasRef): Promise<boolean> {
+    const { host, ide } = await this.base.editor();
+    return client.show(ref.id, this.session.workspace, host, ide).catch(() => false);
+  }
+
   private async show(client: CanvasClient, ref: CanvasRef): Promise<{ launched: boolean; note: string }> {
-    if (await client.show(ref.id, this.session.workspace, hostHint()).catch(() => false)) return { launched: true, note: 'Shown to the human beside the chat.' };
+    // Just shown inline: its view is still connecting.
+    if (this.inlineCapable && Date.now() - (this.base.shownInline.get(ref.id) ?? 0) < INLINE_GRACE_MS) return { launched: true, note: '' };
+    if (await this.panel(client, ref)) return { launched: true, note: SHOWN_BESIDE };
     const url = client.viewerUrl(ref.id);
+    if (this.inlineCapable) {
+      const pane = claudeDesktop() ? `, or open ${url} in your built-in Browser pane beside the chat` : '';
+      return { launched: false, note: `Nobody is watching the board: call canvas_open to show it inline in the chat${pane}.` };
+    }
     const mode = process.env.WHITEBOARD_OPEN?.trim();
     if (mode === 'none') return { launched: false, note: `Nobody is watching the board; the human can open ${url}.` };
-    if ((mode && mode !== 'auto') || !insideIde()) {
+    if ((mode && mode !== 'auto') || !(await this.base.editor()).ide) {
       const { opened, note } = await openViewer(url);
       return opened ? { launched: true, note: `${note}.` } : { launched: false, note: `${note}, so the human can't see the board yet; ask them to open ${url}.` };
     }
-    return { launched: false, note: `No whiteboard panel is connected in the editor, so the human can't see the board yet. Ask them to open the whiteboard panel (or this link themselves: ${url}). Do not open board links in a browser or preview tool yourself.` };
+    // No link here: agents open any link they get, and a browser is what the panel replaces.
+    return { launched: false, note: noPanelNote() };
   }
 
   /** Shows the board and waits until a viewer is connected; false if none arrives. */
@@ -342,6 +407,7 @@ export const TOOLS: Tool[] = [
   {
     name: 'canvas_open',
     description: "Show this chat's own whiteboard to the human beside the chat. Name it with title. To reuse another chat's drawing (any folder), pass board.",
+    _meta: BOARD_TOOL_META,
     inputSchema: obj({
       title: str("Name this chat's board after the topic, e.g. \"How MCP works\""),
       board: str("Open another chat's board by id or title (this folder first, then any); \"own\" returns to this chat's"),
@@ -379,16 +445,19 @@ export const TOOLS: Tool[] = [
       if (loaded) await client.loadSaved(ref.id, loaded.id);
       else if (args.fresh) await client.clear(ref.id);
       const snap = await client.snapshot(ref.id);
-      const shown = args.open === false ? '' : await ctx.reveal(client, ref, snap.viewers);
+      const { note: shown, panel, inline } = args.open === false ? { note: '', panel: false, inline: false } : await ctx.open(client, ref, snap.viewers);
       const others = boards.filter((b) => b.id !== ref.id).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 10);
       const mine = ref.id === own.id;
-      return text(
-        `${mine ? "This chat's board" : `Board from another chat${elsewhere ? ` (${elsewhere})` : ''}`}: ${boardName(ref)} [${ref.id}]. ${snap.viewers ? 'The human is watching it.' : shown}`,
+      const summary = text(
+        `${mine ? "This chat's board" : `Board from another chat${elsewhere ? ` (${elsewhere})` : ''}`}: ${boardName(ref)} [${ref.id}]. ${snap.viewers && !inline ? 'The human is watching it.' : shown}`,
         loaded && `Loaded a copy of saved board "${loaded.name}" [${loaded.id}]; the saved copy stays unchanged.`,
         snap.elements.length ? describeScene(snap.elements, { maxElements: 12 }) : 'The board is empty.',
         others.length > 0 && `Other boards in this workspace (open one with board): ${others.map((b) => `${b.title === b.id ? '(untitled)' : b.title} [${b.id}, ${b.elementCount} el]`).join('; ')}`,
         !mine && 'Drawing now changes that board; canvas_open {board:"own"} switches back to this chat\'s board.',
       );
+      // The inline view (MCP Apps) reads which board to show, and whether a panel shows it already, from
+      // _meta. Not structuredContent: some clients hand that to the model instead of the text.
+      return { content: [{ type: 'text', text: summary }], _meta: { [BOARD_RESULT_META]: ref.id, ...(panel ? { [BOARD_SHOWN_META]: 'panel' } : {}) } };
     },
   },
   {
@@ -564,8 +633,9 @@ export function getTool(name: string): Tool | undefined {
   return BY_NAME.get(name);
 }
 
-export function toolList(): Array<Pick<Tool, 'name' | 'description' | 'inputSchema'>> {
-  return TOOLS.map(({ name, description, inputSchema }) => ({ name, description, inputSchema }));
+/** With `apps` (an MCP Apps client), tools carry their UI `_meta`; other clients don't pay for it. */
+export function toolList(apps = false): Array<Pick<Tool, 'name' | 'description' | 'inputSchema' | '_meta'>> {
+  return TOOLS.map(({ name, description, inputSchema, _meta }) => ({ name, description, inputSchema, ...(apps && _meta ? { _meta } : {}) }));
 }
 
 function errorText(err: unknown): string {

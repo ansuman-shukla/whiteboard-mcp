@@ -107,8 +107,8 @@ async function runMain(workspace) {
   const terminalBoard = (await daemon('GET', '/api/canvases')).body.find((board) => board.title === 'Terminal agent board');
   results.reshown = terminalBoard ? (await daemon('POST', `/api/canvases/${terminalBoard.id}/show`, { workspace, host: results.hostId })).status : 0;
   results.active = await waitFor('the terminal board to be revealed', () => boardTabs().find((tab) => tab.isActive && tab.label === 'Terminal agent board')?.label, 10_000).catch(() => null);
-  // Another window's id never shows here, even for this folder.
-  results.otherWindowId = (await daemon('POST', '/api/canvases/ready-main/show', { workspace, host: '1' })).status;
+  // A window id no window announces any more (stale after a reload) falls back to a window of the folder.
+  results.staleWindowId = (await daemon('POST', '/api/canvases/ready-main/show', { workspace, host: '1' })).status;
 
   results.mainTabs = boardLabels();
   return results;

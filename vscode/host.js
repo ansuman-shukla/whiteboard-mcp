@@ -1,6 +1,7 @@
 'use strict';
 // Panel host: the whiteboard daemon asks this window to show a chat's board beside the chat.
 
+const { watch } = require('node:fs');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
@@ -28,11 +29,12 @@ class WhiteboardHost {
    * @param {{ home: string, hostId: string, folders: () => string[], focused: () => boolean,
    *           onShow: (board: { canvasId: string, url: string, title: string }) => Promise<void> | void,
    *           WebSocketImpl?: typeof WebSocket, fetchImpl?: typeof fetch, readFile?: (file: string) => Promise<string>,
-   *           reconnectMs?: number, connectTimeoutMs?: number }} options
+   *           watchImpl?: typeof watch, reconnectMs?: number, connectTimeoutMs?: number }} options
    */
-  constructor({ home, hostId, folders, focused, onShow, WebSocketImpl = globalThis.WebSocket, fetchImpl = globalThis.fetch, readFile = (file) => fs.readFile(file, 'utf8'), reconnectMs = RECONNECT_MS, connectTimeoutMs = CONNECT_TIMEOUT_MS }) {
-    Object.assign(this, { home, hostId, folders, focused, onShow, WebSocketImpl, fetchImpl, readFile, reconnectMs, connectTimeoutMs });
+  constructor({ home, hostId, folders, focused, onShow, WebSocketImpl = globalThis.WebSocket, fetchImpl = globalThis.fetch, readFile = (file) => fs.readFile(file, 'utf8'), watchImpl = watch, reconnectMs = RECONNECT_MS, connectTimeoutMs = CONNECT_TIMEOUT_MS }) {
+    Object.assign(this, { home, hostId, folders, focused, onShow, WebSocketImpl, fetchImpl, readFile, watchImpl, reconnectMs, connectTimeoutMs });
     this.socket = null;
+    this.watcher = null;
     this.daemon = null;
     this.retryTimer = null;
     this.connecting = false;
@@ -67,6 +69,7 @@ class WhiteboardHost {
     const openTimer = setTimeout(() => socket.close(), this.connectTimeoutMs);
     socket.addEventListener('open', () => {
       clearTimeout(openTimer);
+      this.unwatch();
       this.send({ t: 'hello', hostId: this.hostId, folders: this.folders(), focused: this.focused() });
     });
     socket.addEventListener('message', (event) => void this.receive(socket, event.data));
@@ -80,11 +83,33 @@ class WhiteboardHost {
   }
 
   retry() {
+    this.watch();
     if (this.disposed || this.retryTimer) return;
     this.retryTimer = setTimeout(() => {
       this.retryTimer = null;
       void this.connect();
     }, this.reconnectMs);
+  }
+
+  /**
+   * An agent's first call starts the daemon and asks for a panel at once (the daemon waits a few seconds
+   * for one), so connect as soon as daemon.json appears; the retry timer covers a missing folder.
+   */
+  watch() {
+    if (this.disposed || this.watcher) return;
+    try {
+      this.watcher = this.watchImpl(this.home, (_event, file) => {
+        if (!file || String(file) === 'daemon.json') void this.connect();
+      });
+      this.watcher.on?.('error', () => this.unwatch());
+    } catch {
+      // the state folder doesn't exist yet
+    }
+  }
+
+  unwatch() {
+    this.watcher?.close();
+    this.watcher = null;
   }
 
   send(message) {
@@ -134,6 +159,7 @@ class WhiteboardHost {
 
   dispose() {
     this.disposed = true;
+    this.unwatch();
     clearTimeout(this.retryTimer);
     this.retryTimer = null;
     const socket = this.socket;

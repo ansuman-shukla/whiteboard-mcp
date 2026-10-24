@@ -232,3 +232,42 @@ describe('WhiteboardHost', () => {
     expect(await failing.boards()).toEqual([]);
   });
 });
+
+describe('finding a daemon that just started', () => {
+  it('connects as soon as daemon.json appears, without waiting for the retry timer, and stops watching once connected', async () => {
+    const present: Record<string, string> = {};
+    let onChange: ((event: string, file: string) => void) | undefined;
+    let closed = 0;
+    const watchImpl = vi.fn((dir: string, fn: (event: string, file: string) => void) => {
+      expect(dir).toBe('/home/u/.whiteboard-mcp');
+      onChange = fn;
+      return { close: () => closed++, on: () => undefined };
+    });
+    const { host } = makeHost({ readFile: files(present), watchImpl, reconnectMs: 60_000 });
+    host.start();
+    await sleep(10);
+    expect(FakeSocket.all).toHaveLength(0);
+    expect(watchImpl).toHaveBeenCalledTimes(1);
+    onChange!('rename', 'token'); // other files don't matter
+    await sleep(10);
+    expect(FakeSocket.all).toHaveLength(0);
+    Object.assign(present, { 'daemon.json': JSON.stringify({ port: 47428, pid: 1 }), token: 'tok\n' });
+    onChange!('rename', 'daemon.json');
+    await sleep(10);
+    expect(FakeSocket.all).toHaveLength(1);
+    FakeSocket.all[0]!.open();
+    expect(closed).toBe(1);
+  });
+
+  it('keeps retrying on the timer when the state folder does not exist yet', async () => {
+    const watchImpl = vi.fn(() => {
+      throw new Error('ENOENT');
+    });
+    const present: Record<string, string> = {};
+    const { host } = makeHost({ readFile: files(present), watchImpl, reconnectMs: 10 });
+    host.start();
+    await sleep(15);
+    Object.assign(present, { 'daemon.json': JSON.stringify({ port: 47428, pid: 1 }), token: 'tok\n' });
+    await vi.waitFor(() => expect(FakeSocket.all).toHaveLength(1));
+  });
+});

@@ -1,7 +1,7 @@
 import { Excalidraw, Footer, MainMenu, WelcomeScreen, useDevice } from '@excalidraw/excalidraw';
 import type { ExcalidrawImperativeAPI, UIOptions } from '@excalidraw/excalidraw/types';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { readConfig, storage, type ThemePreference } from './config';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { storage, type ThemePreference, type ViewerConfig } from './config';
 import type { LinkStatus } from './connection';
 import { createFollower } from './follow';
 import { Icon } from './Icon';
@@ -31,9 +31,17 @@ function useTheme(pref: ThemePreference): 'light' | 'dark' {
   return pref === 'auto' ? (systemDark ? 'dark' : 'light') : pref;
 }
 
-export function App() {
-  const config = useMemo(() => readConfig(), []);
-  const theme = useTheme(config.theme);
+interface AppProps {
+  config: ViewerConfig;
+  /** Overrides the config's preference (the MCP Apps host's theme). */
+  theme?: 'light' | 'dark';
+  /** Extra controls beside the status pill. */
+  actions?: React.ReactNode;
+}
+
+export function App({ config, theme: forcedTheme, actions }: AppProps) {
+  const ownTheme = useTheme(config.theme);
+  const theme = forcedTheme ?? ownTheme;
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const [status, setStatus] = useState<LinkStatus>('connecting');
   const [viewers, setViewers] = useState(0);
@@ -55,7 +63,7 @@ export function App() {
     if (!api || !config.canvasId) return;
     window.__excalidrawAPI = api;
     const follower = createFollower(api, () => followRef.current);
-    const session = startLive(api, config.wsUrl, {
+    const session = startLive(api, config.link, {
       status: setStatus,
       viewers: setViewers,
       agentDrew: follower.push,
@@ -141,6 +149,7 @@ export function App() {
         </WelcomeScreen>
         <Chrome>
           {pill}
+          {actions}
           {saving && <SaveForm initialName={title} onSave={save} onClose={closeSave} />}
         </Chrome>
       </Excalidraw>

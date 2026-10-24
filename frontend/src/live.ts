@@ -2,7 +2,7 @@ import { CaptureUpdateAction, FONT_FAMILY, restoreElements } from '@excalidraw/e
 import type { ExcalidrawElement } from '@excalidraw/excalidraw/element/types';
 import type { BinaryFileData, BinaryFiles, ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
 import type { Actor, BinaryFile, CanvasSnapshot, ExElement, SavedSummary, ServerMessage, ViewerRequestType } from '../../src/shared/protocol';
-import { connect, type LinkStatus } from './connection';
+import type { LinkStatus, OpenLink } from './connection';
 import { pulseHighlight } from './highlight';
 import { handleRequest, type RequestContext } from './requests';
 import { adoptRestored, createThrottle, diffFiles, diffLocal, isSendable, markKnown, mergeRemote, reconcileSnapshot, type Known } from './sync';
@@ -57,7 +57,7 @@ async function loadFonts(elements: readonly ExElement[]): Promise<void> {
 }
 
 /** Wires an Excalidraw instance to the daemon: snapshot/elements sync, local change upload and viewer requests. */
-export function startLive(api: ExcalidrawImperativeAPI, wsUrl: string, ev: LiveEvents): Live {
+export function startLive(api: ExcalidrawImperativeAPI, openLink: OpenLink, ev: LiveEvents): Live {
   const known: Known = new Map();
   const sentFiles = new Set<string>();
   let synced = false;
@@ -180,7 +180,7 @@ export function startLive(api: ExcalidrawImperativeAPI, wsUrl: string, ev: LiveE
     }
   };
 
-  const conn = connect(wsUrl, onMessage, (status) => {
+  const conn = openLink(onMessage, (status) => {
     if (status !== 'live') {
       synced = false;
       settleSave({ error: 'connection lost' });

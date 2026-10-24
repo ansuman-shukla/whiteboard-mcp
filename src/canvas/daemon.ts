@@ -86,7 +86,7 @@ interface PendingShow {
   finish: (status: number, body: unknown) => void;
 }
 
-/** A show waiting for its window's panel host to connect to a daemon that just started. */
+/** A show waiting for a panel host to connect to a daemon that just started. */
 interface HostWait {
   retry: () => void;
   finish: (status: number, body: unknown) => void;
@@ -340,13 +340,14 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
 
   /**
    * The chat's own window (hostId equals the hint) wins. Otherwise a window whose folders contain the
-   * board's workspace, focused first, then the most recent; a window known to be another one than the
-   * hinted one is never used. No match means no host: showing a chat's board in an unrelated window
-   * would hide that window's own board.
+   * board's workspace, focused first, then the most recent. While the hinted window may still connect
+   * (`strict`), other identified windows are skipped; once it can't (a stale id after Reload Window),
+   * the folder decides. No match means no host: a board never opens in a window of another folder.
    */
-  function pickHost(workspace: string | undefined, hint: string | undefined): Host | undefined {
+  function pickHost(workspace: string | undefined, hint: string | undefined, strict: boolean): Host | undefined {
     const rank = (h: Host): number => {
-      if (hint !== undefined && h.hostId !== undefined) return h.hostId === hint ? 3 : 0;
+      if (hint !== undefined && h.hostId === hint) return 3;
+      if (strict && hint !== undefined && h.hostId !== undefined) return 0;
       if (!workspace || !h.folders.some((f) => contains(f, workspace))) return 0;
       return h.focused ? 2 : 1;
     };
@@ -361,22 +362,24 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
 
   /**
    * Right after the daemon starts (the agent's first call started it), the chat's window hasn't found it
-   * yet; a show that names its window waits briefly for that window's host instead of answering no_host.
+   * yet: a show that names its window, or comes from an agent inside an editor (`wait`), waits briefly
+   * for a host instead of answering no_host. A hinted show waits for its own window first.
    */
-  function show(canvasId: string, workspace: string | undefined, hint: string | undefined, res: ServerResponse): Promise<void> {
-    const host = pickHost(workspace, hint);
-    if (host) return showOn(host, canvasId, res);
+  function show(canvasId: string, workspace: string | undefined, hint: string | undefined, wait: boolean, res: ServerResponse): Promise<void> {
     const graceLeft = startedAt + hostGraceMs - Date.now();
-    if (hint === undefined || graceLeft <= 0) return Promise.resolve(sendJson(res, 409, { error: 'no_host' }));
+    const waiting = graceLeft > 0 && (hint !== undefined || wait);
+    const host = pickHost(workspace, hint, waiting);
+    if (host) return showOn(host, canvasId, res);
+    if (!waiting) return Promise.resolve(sendJson(res, 409, { error: 'no_host' }));
     return new Promise((done) => {
       const end = () => {
-        hostWaits.delete(wait);
+        hostWaits.delete(waiter);
         clearTimeout(timer);
         res.off('close', onClientGone);
       };
-      const wait: HostWait = {
+      const waiter: HostWait = {
         retry: () => {
-          const found = pickHost(workspace, hint);
+          const found = pickHost(workspace, hint, true);
           if (!found) return;
           end();
           void showOn(found, canvasId, res).then(done);
@@ -391,9 +394,14 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
         end();
         done();
       };
-      const timer = setTimeout(() => wait.finish(409, { error: 'no_host' }), graceLeft);
+      const timer = setTimeout(() => {
+        const fallback = pickHost(workspace, hint, false);
+        if (!fallback) return waiter.finish(409, { error: 'no_host' });
+        end();
+        void showOn(fallback, canvasId, res).then(done);
+      }, graceLeft);
       res.once('close', onClientGone);
-      hostWaits.add(wait);
+      hostWaits.add(waiter);
     });
   }
 
@@ -440,11 +448,12 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
         return sendJson(res, 200, { ...store.ensure(id, { title, workspace, chat } as CanvasMeta), viewers: viewerCount(id) });
       }
       case 'POST show': {
-        const { workspace, host: hint } = await readJson(req);
+        const { workspace, host: hint, wait } = await readJson(req);
         if (workspace !== undefined && typeof workspace !== 'string') throw new HttpError(400, 'workspace must be a string');
+        if (wait !== undefined && typeof wait !== 'boolean') throw new HttpError(400, 'wait must be a boolean');
         if (hint !== undefined && (typeof hint !== 'string' || !hint || hint.length > MAX_HOST_ID)) throw new HttpError(400, 'host must be a non-empty string');
         requireCanvas();
-        return show(id, workspace as string | undefined, hint as string | undefined, res);
+        return show(id, workspace as string | undefined, hint as string | undefined, wait === true, res);
       }
       case 'DELETE ':
         if (!store.remove(id)) throw new HttpError(404, 'canvas_not_found');

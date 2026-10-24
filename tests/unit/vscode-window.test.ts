@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
-import { hostHint } from '../../src/mcp/tools.js';
+import { hostHint } from '../../src/mcp/editor.js';
 
 const require = createRequire(import.meta.url);
 const { announceWindow, HOST_ID_VAR } = require('../../vscode/window.js');

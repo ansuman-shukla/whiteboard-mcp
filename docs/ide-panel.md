@@ -20,7 +20,9 @@ It works for:
 
 Requires VS Code 1.101 or later (its extension host is Node 22 with a built-in WebSocket), or an editor built on that base, such as Cursor 2.1+. Older editors show a warning and the extension stays idle.
 
-The extension isn't on the Marketplace yet. Build the `.vsix` from a clone and install it:
+The extension isn't on the Marketplace or Open VSX yet, but the npm package ships it (`dist/vscode/whiteboard-mcp-<version>.vsix`). When an agent inside an editor draws and no panel is connected, the tool result gives it the exact `code --install-extension …` command for that file; the agent asks you, runs it (or hands it to you) and shows the board again. The window picks the extension up without a restart.
+
+To install it yourself, build the `.vsix` from a clone:
 
 ```sh
 npm install && npm run build      # Whiteboard MCP itself
@@ -56,9 +58,12 @@ window's extension host (pid 4242) ── panel host: hello {hostId: "4242", fol
 
 - The window id is the extension host's pid, the same id Windsurf and Devin Desktop already give their chats as `WINDSURF_EXT_HOST_PID`. `whiteboard-mcp` sends `WHITEBOARD_HOST_ID` first, else `WINDSURF_EXT_HOST_PID`.
 - VS Code itself gives an agent nothing that names its window: `VSCODE_PID` is the main process, shared by all windows, and integrated terminals don't get `VSCODE_IPC_HOOK_CLI` (checked in VS Code 1.142). It starts stdio MCP servers from the extension host with that process's environment, which is why setting it there reaches them.
+- Some agents start MCP servers with a stripped environment (Codex passes only `HOME`, `PATH` and a few others). `whiteboard-mcp` then reads the window id, and whether it runs in an editor at all, from its parent processes' starting environment (`ps -E` on macOS, `/proc/<pid>/environ` on Linux). Not on Windows: there, add `env_vars = ["WHITEBOARD_HOST_ID", "VSCODE_PID"]` under `[mcp_servers.whiteboard]` in Codex's `config.toml`.
+- The extension activates as soon as the window starts (`*`), before agent extensions such as Claude Code or Codex start their agents, so they inherit the window id.
+- VS Code's own agent (Copilot) also renders [boards inline](inline.md); with the panel extension connected, the panel wins and the inline view shrinks to a note.
 - A board with a window id only ever opens in that window. Without one (an agent started before the extension activated, or by something outside the editor) it opens in a window showing the board's folder, focused first, never in an unrelated window.
 - Each board gets its own tab; showing it again only reveals that tab.
-- The agent's first call often starts the daemon, before windows have found it (they look for `daemon.json` every 3 s); a request naming a window waits up to 5 s for that window to connect.
+- The agent's first call often starts the daemon, before windows have found it (they watch for `daemon.json`, and retry every 3 s); a request naming a window, or coming from an agent inside an editor, waits up to 5 s for a window to connect. A window id no window announces any more (stale after a reload) falls back to the folder.
 
 ## Troubleshooting
 
@@ -66,7 +71,7 @@ window's extension host (pid 4242) ── panel host: hello {hostId: "4242", fol
 
 - Is the extension installed and enabled in this window? An editor older than VS Code 1.101 shows a warning when it starts.
 - In the agent's terminal, `echo $WHITEBOARD_HOST_ID` should print a number. Empty: the terminal (or agent) was started before the extension activated; open a new terminal and restart the agent there.
-- After **Developer: Reload Window**, **Restart Extension Host** or an extension update, the window gets a new id but terminals that survived keep the old one, so their boards have nowhere to go. Relaunch those terminals (VS Code may offer it) or restart the agent in a new terminal.
+- After **Developer: Reload Window**, **Restart Extension Host** or an extension update, the window gets a new id but terminals that survived keep the old one. Their boards then open in a window showing their folder (the focused one first); with two windows on one folder, relaunch those terminals (VS Code may offer it) or restart the agent in a new terminal.
 - Agent and editor must use the same state folder: if the agent sets `WHITEBOARD_HOME`, set `whiteboardMcp.home` to the same path.
 - Remote windows (SSH, WSL, dev containers) aren't supported yet: the board is served on the remote machine's `127.0.0.1`.
 

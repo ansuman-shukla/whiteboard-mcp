@@ -142,7 +142,7 @@ describe.skipIf(!enabled)('real VS Code', () => {
 
       expect.soft(result.reshown).toBe(200);
       expect.soft(result.active).toBe('Terminal agent board');
-      expect.soft(result.otherWindowId).toBe(409);
+      expect.soft(result.staleWindowId).toBe(200);
       for (const title of AGENT_BOARDS) expect.soft(result.mainTabs.filter((label: string) => label === title)).toEqual([title]);
       for (const title of AGENT_BOARDS) expect.soft(otherTabs).not.toContain(title);
     } finally {
