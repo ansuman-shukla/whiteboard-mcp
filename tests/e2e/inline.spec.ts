@@ -69,6 +69,7 @@ test.beforeAll(async () => {
   home = mkdtempSync(join(tmpdir(), 'whiteboard-mcp-inline-'));
   const env = { ...(process.env as Record<string, string>), WHITEBOARD_HOME: home, WHITEBOARD_PORT: String(await freePort()), WHITEBOARD_OPEN: 'none', WHITEBOARD_CHAT_ID: 'e2e-inline', WHITEBOARD_WORKSPACE: home };
   for (const key of ['WHITEBOARD_HOST_ID', 'WINDSURF_EXT_HOST_PID', 'WHITEBOARD_CHAT_COMMAND']) delete env[key];
+  env.WHITEBOARD_HOST_ID = ''; // no editor window: the board shows inline, not in the runner's panel
   client = new Client({ name: 'e2e-host', version: '1' }, { capabilities: { extensions: { 'io.modelcontextprotocol/ui': { mimeTypes: ['text/html;profile=mcp-app'] } } } });
   await client.connect(new StdioClientTransport({ command: process.execPath, args: [join(repo, 'dist', 'cli.js')], env, stderr: 'ignore' }));
   const { contents } = await client.readResource({ uri: BOARD_URI });

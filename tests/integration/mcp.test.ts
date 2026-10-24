@@ -83,6 +83,8 @@ beforeAll(async () => {
   };
   // Ignore the identity of the agent running these tests (its chat and its editor window).
   for (const key of ['WHITEBOARD_WORKSPACE', 'WHITEBOARD_CHAT_ID', 'WHITEBOARD_CHAT_COMMAND', 'WHITEBOARD_HOST_ID', 'WINDSURF_EXT_HOST_PID']) delete env[key];
+  // Set but empty: no window, and no looking for one up the process tree (the test runner's editor).
+  env.WHITEBOARD_HOST_ID = '';
   delete env.WHITEBOARD_EXPORT_DIR;
 });
 
@@ -536,15 +538,23 @@ describe('showing boards', () => {
     }
   });
 
-  it('inside an editor, a window other than the chat\'s own never shows its board', async () => {
+  it("a window id no panel announces (stale after Reload Window) falls back to a window of the chat's folder, never another folder", async () => {
     const chat = await connect({ env: { WINDSURF_EXT_HOST_PID: '45824', WHITEBOARD_OPEN: '' } });
-    const otherWindow = await panelHost({ folders: [workspace], hostId: '64248', focused: true });
+    const elsewhere = await panelHost({ folders: [join(root, 'elsewhere')], hostId: '11111', focused: true });
     try {
       const { text } = await call(chat, 'canvas_draw', { elements: [{ id: 'o', type: 'rectangle', x: 0, y: 0 }] });
       expect(text).toContain('No whiteboard panel is connected');
-      expect(otherWindow.shows).toEqual([]);
+      expect(elsewhere.shows).toEqual([]);
+      const sameFolder = await panelHost({ folders: [workspace], hostId: '64248', focused: true });
+      try {
+        const opened = await call(chat, 'canvas_open');
+        expect(opened.text).toContain('Shown to the human beside the chat.');
+        expect(sameFolder.shows).toEqual([boardId(opened.text)]);
+      } finally {
+        sameFolder.close();
+      }
     } finally {
-      otherWindow.close();
+      elsewhere.close();
     }
   });
 
@@ -589,11 +599,14 @@ describe('showing boards', () => {
     expect(Date.now() - started).toBeLessThan(5000);
   });
 
-  it('inside an editor without a panel host it opens nothing and tells the agent not to use a browser', async () => {
+  it('inside an editor without a panel host it opens nothing, says how to get the panel, and hands over no link', async () => {
     const client = await connect({ env: { WINDSURF_EXT_HOST_PID: '1', WHITEBOARD_OPEN: '' } });
     const { text } = await call(client, 'canvas_open');
     expect(text).toContain('No whiteboard panel is connected');
-    expect(text).toContain('Do not open board links in a browser or preview tool');
+    expect(text).toContain('install the Whiteboard MCP editor extension (https://github.com/ansuman-shukla/whiteboard-mcp/blob/main/docs/ide-panel.md)');
+    expect(text).toContain('Whiteboard: Open Board');
+    expect(text).toContain('Do not open the board in a browser or preview tool yourself');
+    expect(text).not.toMatch(/\/c\/[a-z0-9-]+\?token=/);
   });
 });
 
@@ -670,6 +683,38 @@ describe('MCP Apps (board inline in the chat)', () => {
     const bad = await view(client, { view: 'v2', board: 'Not A Board!', wait: 0 });
     expect(bad.isError).toBe(true);
     expect(bad.content[0]?.text).toMatch(/could not connect the view/);
+  });
+
+  it('prefers the IDE panel beside the chat over the inline board, and tells the view so', async () => {
+    const client = await connect({ apps: true, env: { WHITEBOARD_CHAT_ID: 'inline-panel', WINDSURF_EXT_HOST_PID: '77777' } });
+    const { port, token } = daemon();
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws/host?token=${token}`);
+    const shows: string[] = [];
+    ws.on('message', (m) => {
+      const msg = JSON.parse(String(m)) as { reqId: string; canvasId: string };
+      shows.push(msg.canvasId);
+      ws.send(JSON.stringify({ t: 'shown', reqId: msg.reqId, ok: true }));
+    });
+    await new Promise((r) => ws.once('open', r));
+    ws.send(JSON.stringify({ t: 'hello', folders: [], focused: false, hostId: '77777' }));
+    await new Promise((r) => setTimeout(r, 100));
+    try {
+      const opened = await call(client, 'canvas_open', { title: 'Panel first' });
+      expect(opened.text).toContain('Shown to the human beside the chat.');
+      expect(opened.text).not.toContain('Shown inline');
+      const meta = (opened.result as Result & { _meta?: Record<string, unknown> })._meta;
+      expect(meta).toEqual({ 'whiteboard-mcp/board': shows[0], 'whiteboard-mcp/shown': 'panel' });
+    } finally {
+      ws.close();
+    }
+  });
+
+  it('in the Claude desktop app it also offers the Browser pane beside the chat', async () => {
+    const client = await connect({ apps: true, env: { WHITEBOARD_CHAT_ID: 'inline-desktop', CLAUDE_CODE_ENTRYPOINT: 'claude-desktop' } });
+    const opened = await call(client, 'canvas_open', { title: 'Desktop' });
+    expect(opened.text).toMatch(/Shown inline in the chat\. To keep it beside the chat, also open it in your built-in Browser pane \(never an external browser\): http:\/\/127\.0\.0\.1:\d+\/c\/[a-z0-9-]+\?token=/);
+    const plain = await connect({ apps: true, env: { WHITEBOARD_CHAT_ID: 'inline-plain', CLAUDE_CODE_ENTRYPOINT: 'cli' } });
+    expect((await call(plain, 'canvas_open', { title: 'Plain' })).text).not.toContain('Browser pane');
   });
 
   it('nudges the agent to canvas_open when nobody watches an inline board', async () => {

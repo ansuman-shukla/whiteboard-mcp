@@ -79,7 +79,9 @@ In VS Code, Cursor or Windsurf, install the [IDE panel extension](ide-panel.md) 
 
 Panel hosts connect to the daemon at `/ws/host` (token-protected) and say which folders they show, plus an optional `hostId` naming their window. A board opens in the chat's own window:
 
-1. the host whose `hostId` matches the agent's `WHITEBOARD_HOST_ID` (else Windsurf/Devin Desktop's `WINDSURF_EXT_HOST_PID`),
-2. otherwise a window showing the board's workspace (focused first) that doesn't announce a different `hostId`.
+1. the host whose `hostId` matches the agent's `WHITEBOARD_HOST_ID` (else Windsurf/Devin Desktop's `WINDSURF_EXT_HOST_PID`), looked up in the agent's ancestors when its own environment lacks it (Codex passes MCP servers only a few variables);
+2. otherwise a window showing the board's workspace, focused first. While the hinted window may still be connecting (a daemon that just started), windows announcing another `hostId` are skipped; a window id no host announces (stale after Reload Window) falls back to the folder.
 
-It never opens in an unrelated window, where it would hide that window's own board. The [IDE panel extension](ide-panel.md) sets `WHITEBOARD_HOST_ID` for the agents each window starts. Hosts show each board in its own tab and never retarget another board's tab, so chats never replace each other's boards. The agent never gets the board link while a panel can show it, and it is told not to open board links in browser or preview tools.
+It never opens in a window of another folder. The [IDE panel extension](ide-panel.md) sets `WHITEBOARD_HOST_ID` for the agents each window starts. Hosts show each board in its own tab and never retarget another board's tab, so chats never replace each other's boards. The agent never gets the board link while a panel can show it, and it is told not to open board links in browser or preview tools unless a tool result says to (the Claude desktop app's Browser pane).
+
+A daemon that just started gives windows 5 s to connect before answering that no panel is there: shows naming their window, and shows from agents inside an editor that don't know their window.

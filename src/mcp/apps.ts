@@ -27,6 +27,8 @@ export function clientSupportsApps(capabilities: unknown): boolean {
 
 /** canvas_open's result `_meta` key naming the board the inline view shows. */
 export const BOARD_RESULT_META = 'whiteboard-mcp/board';
+/** Set to "panel" when an IDE panel beside the chat shows the board: the inline view then stays small. */
+export const BOARD_SHOWN_META = 'whiteboard-mcp/shown';
 
 /** `_meta` for a tool whose result the host shows as the inline board (new and legacy keys). */
 export const BOARD_TOOL_META = { ui: { resourceUri: BOARD_URI }, 'ui/resourceUri': BOARD_URI };

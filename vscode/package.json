@@ -25,7 +25,7 @@
   ],
   "main": "./extension.js",
   "activationEvents": [
-    "onStartupFinished"
+    "*"
   ],
   "contributes": {
     "commands": [

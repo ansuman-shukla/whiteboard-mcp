@@ -14,7 +14,7 @@ A live whiteboard shared with the user. You draw through the `whiteboard-mcp` MC
 
 ## The live explain loop
 
-1. **Open**: `canvas_open {"title":"<topic>"}` once per topic. It shows this chat's board to the user and tells you what is already on it. Never open board links in a browser or preview tool yourself. Call `canvas_guide` once if you haven't read it yet (layout, sizes, colours).
+1. **Open**: `canvas_open {"title":"<topic>"}` once per topic. It shows this chat's board to the user and tells you what is already on it. Never open board links in a browser or preview tool yourself, unless a tool result tells you to (e.g. the Claude desktop app's Browser pane). Call `canvas_guide` once if you haven't read it yet (layout, sizes, colours).
 2. **Draw step by step**: one `canvas_draw` per idea (the components, then the flow between them, then annotations). After each call, write one or two short sentences in chat that point at the canvas ("the blue boxes are the services"). The canvas carries the detail, keep the chat brief.
 3. **Point**: `canvas_focus {"ids":["api","db"],"highlight":true}` when you talk about specific parts.
 4. **Check once**: after the main layout, `canvas_screenshot` one time to catch overlaps or cut-off labels, then fix them with `canvas_draw` on the same ids.

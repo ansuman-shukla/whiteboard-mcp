@@ -11,17 +11,23 @@ import { Icon } from './Icon';
 
 /** The board inline in a chat (MCP Apps): canvas_open's result names the board, the host proxies its link. */
 const INLINE_HEIGHT = 560;
+/** A one-line note when the board is in an IDE panel beside the chat instead. */
+const NOTE_HEIGHT = 48;
 const APP_INFO = { name: 'whiteboard-mcp', version: __APP_VERSION__ };
 const EXPAND = 'M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7';
 const COLLAPSE = 'M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7';
 
-type State = { phase: 'waiting' } | { phase: 'board'; board: string } | { phase: 'error'; message: string };
+type State = { phase: 'waiting' } | { phase: 'board'; board: string } | { phase: 'panel' } | { phase: 'error'; message: string };
 
-/** canvas_open's result names the board in `_meta`; hosts that drop result `_meta` still pass the text, whose first line has `[board-id].` after the title. */
+/**
+ * canvas_open's result names the board in `_meta`, and says when an IDE panel shows it already; hosts that
+ * drop result `_meta` still pass the text, whose first line has `[board-id].` after the title.
+ */
 function boardFrom(result: ToolResult): State {
   const why = result.content?.find((c) => c.type === 'text')?.text;
   const meta = result._meta?.['whiteboard-mcp/board'];
   const board = typeof meta === 'string' && meta ? meta : [...(why?.split('\n')[0] ?? '').matchAll(/\[([a-z0-9][a-z0-9-]*)\]\./g)].pop()?.[1];
+  if (!result.isError && board && result._meta?.['whiteboard-mcp/shown'] === 'panel') return { phase: 'panel' };
   if (!result.isError && board) return { phase: 'board', board };
   return { phase: 'error', message: why ? `The board could not be opened: ${why}` : 'The board could not be opened.' };
 }
@@ -41,16 +47,18 @@ function InlineBoard({ bridge, events }: { bridge: HostBridge; events: Events })
 
   const fullscreen = ctx.displayMode === 'fullscreen';
   const canFullscreen = ctx.availableDisplayModes?.includes('fullscreen') ?? false;
+  const note = state.phase === 'panel';
   useEffect(() => {
     const fixed = ctx.containerDimensions?.height;
-    const height = fullscreen ? (fixed ?? window.innerHeight) : (fixed ?? Math.min(INLINE_HEIGHT, ctx.containerDimensions?.maxHeight ?? INLINE_HEIGHT));
-    document.documentElement.style.height = fullscreen ? '100vh' : `${height}px`;
+    const height = note ? NOTE_HEIGHT : fullscreen ? (fixed ?? window.innerHeight) : (fixed ?? Math.min(INLINE_HEIGHT, ctx.containerDimensions?.maxHeight ?? INLINE_HEIGHT));
+    document.documentElement.style.height = fullscreen && !note ? '100vh' : `${height}px`;
     bridge.sizeChanged(height);
-  }, [bridge, ctx, fullscreen]);
+  }, [bridge, ctx, fullscreen, note]);
 
   const board = state.phase === 'board' ? state.board : '';
   const config = useMemo<ViewerConfig>(() => ({ canvasId: board, token: '', theme: 'auto', embed: true, link: relayLink(bridge, board) }), [bridge, board]);
 
+  if (state.phase === 'panel') return <div className="xl-inline-msg">The board is open in the Whiteboard tab beside the chat.</div>;
   if (state.phase !== 'board') return <div className={`xl-inline-msg${state.phase === 'error' ? ' xl-inline-msg--error' : ''}`}>{state.phase === 'error' ? state.message : 'Opening the board…'}</div>;
   const toggle = canFullscreen ? (
     <button

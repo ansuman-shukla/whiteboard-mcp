@@ -606,7 +606,7 @@ describe('panel hosts', () => {
   }
   const board = (d: Daemon, id: string, workspace: string) => apiJson(d, `/api/canvases/${id}`, { method: 'PUT', body: { title: 'How MCP works', workspace, chat: 'chat-1' } });
 
-  const showTo = (d: Daemon, body: { workspace?: string; host?: string }) => apiJson(d, '/api/canvases/mcp/show', { body });
+  const showTo = (d: Daemon, body: { workspace?: string; host?: string; wait?: boolean }) => apiJson(d, '/api/canvases/mcp/show', { body });
 
   it('stores board metadata and shows it in the window of its workspace', async () => {
     const d = await start();
@@ -660,17 +660,17 @@ describe('panel hosts', () => {
     expect(await answer(a, { workspace: '/w' })).toEqual([1, 0, 0]);
   });
 
-  it('a hint for a window without a host never lands in another identified window, only in old hosts of the folder', async () => {
-    const d = await start();
+  it('a hint no window announces (stale after Reload Window) falls back to the folder, never to another folder', async () => {
+    const d = await start({ hostGraceMs: 0 });
     await board(d, 'mcp', '/w');
-    const other = await host(d, { folders: ['/w'], focused: true, hostId: '222' });
+    const elsewhere = await host(d, { folders: ['/x'], focused: true, hostId: '333' });
     expect(await showTo(d, { workspace: '/w', host: '999' })).toEqual({ status: 409, body: { error: 'no_host' } });
-    const old = await host(d, { folders: ['/w'], focused: false });
+    const other = await host(d, { folders: ['/w'], focused: true, hostId: '222' });
     const pending = showTo(d, { workspace: '/w', host: '999' });
-    await until(() => old.shows.length === 1);
-    old.reply(old.shows[0]!.reqId);
+    await until(() => other.shows.length === 1);
+    other.reply(other.shows[0]!.reqId);
     expect((await pending).status).toBe(200);
-    expect(other.shows).toEqual([]);
+    expect(elsewhere.shows).toEqual([]);
   });
 
   it('among windows of the folder without a hint: focused first, then the most recently active', async () => {
@@ -701,10 +701,11 @@ describe('panel hosts', () => {
     await until(() => d.stats().hosts === 0 && d.stats().pending === 0);
   });
 
-  it('rejects a malformed host hint', async () => {
+  it('rejects a malformed host hint or wait flag', async () => {
     const d = await start();
     await board(d, 'mcp', '/w');
     expect((await showTo(d, { workspace: '/w', host: 42 as unknown as string })).status).toBe(400);
+    expect((await showTo(d, { workspace: '/w', wait: 'yes' as unknown as boolean })).status).toBe(400);
   });
 
   it('answers 409 without a host, 502 on failure or disconnect, 504 on timeout, 404 for unknown boards', async () => {
@@ -743,7 +744,7 @@ describe('panel hosts', () => {
     expect(d.stats().pending).toBe(0);
   });
 
-  it('answers no_host once the grace period is over, and never waits for shows without a window hint', async () => {
+  it('answers no_host once the grace period is over, and never waits for shows from outside an editor', async () => {
     const d = await start({ hostGraceMs: 400 });
     await board(d, 'mcp', '/w');
     let started = Date.now();
@@ -753,8 +754,36 @@ describe('panel hosts', () => {
     expect(Date.now() - started).toBeGreaterThanOrEqual(300);
     started = Date.now();
     expect(await showTo(d, { workspace: '/w', host: '111' })).toEqual({ status: 409, body: { error: 'no_host' } });
+    expect(await showTo(d, { workspace: '/w', wait: true })).toEqual({ status: 409, body: { error: 'no_host' } });
     expect(Date.now() - started).toBeLessThan(200);
     expect(d.stats().pending).toBe(0);
+  });
+
+  it('a fresh daemon waits for a window of the folder when the agent is in an editor without knowing its window', async () => {
+    const d = await start({ hostGraceMs: 3000 });
+    await board(d, 'mcp', '/w');
+    const pending = showTo(d, { workspace: '/w', wait: true });
+    await sleep(100);
+    expect(d.stats().pending).toBe(1);
+    await host(d, { folders: ['/x'], focused: true, hostId: '333' });
+    await sleep(50);
+    expect(d.stats().pending).toBe(1);
+    const own = await host(d, { folders: ['/w'], focused: false, hostId: '111' });
+    await until(() => own.shows.length === 1);
+    own.reply(own.shows[0]!.reqId);
+    expect(await pending).toEqual({ status: 200, body: { shown: true } });
+  });
+
+  it("a hinted show whose window never connects falls back to the folder when the grace period ends", async () => {
+    const d = await start({ hostGraceMs: 400 });
+    await board(d, 'mcp', '/w');
+    const pending = showTo(d, { workspace: '/w', host: '999' });
+    const other = await host(d, { folders: ['/w'], focused: true, hostId: '222' });
+    await sleep(100);
+    expect(other.shows).toEqual([]);
+    await until(() => other.shows.length === 1);
+    other.reply(other.shows[0]!.reqId);
+    expect(await pending).toEqual({ status: 200, body: { shown: true } });
   });
 
   it('drops a waiting show when its caller leaves or the daemon shuts down', async () => {

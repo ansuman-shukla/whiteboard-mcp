@@ -22,6 +22,8 @@ command = "npx"
 args = ["-y", "@ansuman-shukla/whiteboard-mcp"]
 ```
 
+The Codex app shows the board inline in the chat ([MCP Apps](inline.md)); don't set `WHITEBOARD_OPEN = "browser"` there, it turns that off. In VS Code (Codex extension or `codex` in the terminal), the [IDE panel extension](ide-panel.md) shows it beside the chat.
+
 ## Devin CLI
 
 ```sh
