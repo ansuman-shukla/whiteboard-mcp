@@ -29,6 +29,7 @@ export interface HostContext {
 export interface ToolResult {
   content?: Array<{ type: string; text?: string }>;
   structuredContent?: Json;
+  _meta?: Json;
   isError?: boolean;
 }
 export interface BridgeEvents {

@@ -5,7 +5,7 @@ import { CanvasClient, CanvasError } from '../canvas/client.js';
 import { describeChanges, describeScene } from '../shared/describe.js';
 import { ELEMENT_SPEC_FIELDS, buildElements, deleteElements, type ElementSpec } from '../shared/elements.js';
 import type { CanvasSummary, ChangesResponse, ExElement, MermaidResult, SavedSummary, ScreenshotResult } from '../shared/protocol.js';
-import { BOARD_TOOL_META } from './apps.js';
+import { BOARD_RESULT_META, BOARD_TOOL_META } from './apps.js';
 import { closestBoards, findBoard, whereFrom } from './find.js';
 import { GUIDE } from './guide.js';
 import { openViewer } from './open.js';
@@ -15,7 +15,7 @@ import type { CanvasRef, Session } from './session.js';
 export type Content = { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string };
 export interface ToolResult {
   content: Content[];
-  structuredContent?: Record<string, unknown>;
+  _meta?: Record<string, unknown>;
   isError?: boolean;
 }
 type Args = Record<string, unknown>;
@@ -418,8 +418,9 @@ export const TOOLS: Tool[] = [
         others.length > 0 && `Other boards in this workspace (open one with board): ${others.map((b) => `${b.title === b.id ? '(untitled)' : b.title} [${b.id}, ${b.elementCount} el]`).join('; ')}`,
         !mine && 'Drawing now changes that board; canvas_open {board:"own"} switches back to this chat\'s board.',
       );
-      // The inline view (MCP Apps) reads which board to show from here.
-      return { content: [{ type: 'text', text: summary }], structuredContent: { board: ref.id, title: ref.title, show: args.open !== false } };
+      // The inline view (MCP Apps) reads which board to show from _meta. Not structuredContent: some
+      // clients hand that to the model instead of the text.
+      return { content: [{ type: 'text', text: summary }], _meta: { [BOARD_RESULT_META]: ref.id } };
     },
   },
   {

@@ -25,6 +25,9 @@ export function clientSupportsApps(capabilities: unknown): boolean {
   return !Array.isArray(ui.mimeTypes) || ui.mimeTypes.includes(APP_MIME_TYPE);
 }
 
+/** canvas_open's result `_meta` key naming the board the inline view shows. */
+export const BOARD_RESULT_META = 'whiteboard-mcp/board';
+
 /** `_meta` for a tool whose result the host shows as the inline board (new and legacy keys). */
 export const BOARD_TOOL_META = { ui: { resourceUri: BOARD_URI }, 'ui/resourceUri': BOARD_URI };
 
@@ -204,6 +207,7 @@ export class ViewRelays {
       link?.end('switched board');
     }
     if (this.links.size >= MAX_VIEWS) throw new ViewError('too many inline views are open');
+    if (process.env.WHITEBOARD_DEBUG === '1') process.stderr.write(`[whiteboard-mcp] inline view ${view} connecting to ${board}\n`);
     const created = (async () => {
       const client = await this.connect();
       await client.health(); // finds the daemon again if it restarted on another port

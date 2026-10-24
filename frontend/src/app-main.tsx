@@ -17,10 +17,12 @@ const COLLAPSE = 'M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7';
 
 type State = { phase: 'waiting' } | { phase: 'board'; board: string } | { phase: 'error'; message: string };
 
+/** canvas_open's result names the board in `_meta`; hosts that drop result `_meta` still pass the text, whose first line has `[board-id].` after the title. */
 function boardFrom(result: ToolResult): State {
-  const board = result.structuredContent?.board;
-  if (!result.isError && typeof board === 'string' && board) return { phase: 'board', board };
   const why = result.content?.find((c) => c.type === 'text')?.text;
+  const meta = result._meta?.['whiteboard-mcp/board'];
+  const board = typeof meta === 'string' && meta ? meta : [...(why?.split('\n')[0] ?? '').matchAll(/\[([a-z0-9][a-z0-9-]*)\]\./g)].pop()?.[1];
+  if (!result.isError && board) return { phase: 'board', board };
   return { phase: 'error', message: why ? `The board could not be opened: ${why}` : 'The board could not be opened.' };
 }
 

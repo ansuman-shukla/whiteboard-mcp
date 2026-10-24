@@ -634,8 +634,11 @@ describe('MCP Apps (board inline in the chat)', () => {
     const client = await connect({ apps: true, env: { WHITEBOARD_CHAT_ID: 'inline-chat' } });
     const opened = await call(client, 'canvas_open', { title: 'Inline' });
     expect(opened.text).toContain('Shown inline in the chat.');
-    const board = (opened.result as ViewResult & { structuredContent?: { board?: string } }).structuredContent?.board;
+    const board = (opened.result as Result & { _meta?: Record<string, unknown>; structuredContent?: unknown })._meta?.['whiteboard-mcp/board'];
     expect(board).toMatch(/^main-workspace-[0-9a-f]{6}$/);
+    // The model gets the text: no structuredContent for clients to show it instead.
+    expect((opened.result as { structuredContent?: unknown }).structuredContent).toBeUndefined();
+    expect(opened.text).toContain(`[${board}].`);
     // The view is still loading: no "nobody is watching" nudge right after canvas_open.
     const first = await call(client, 'canvas_draw', { elements: [{ id: 'r1', type: 'rectangle', x: 0, y: 0, label: 'One' }] });
     expect(first.text).not.toContain('Nobody is watching');

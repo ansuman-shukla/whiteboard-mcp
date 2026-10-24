@@ -11,6 +11,9 @@ export const SUPPORTED_PROTOCOL_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03
 const ROOTS_TIMEOUT_MS = 3000;
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+const debug = (msg: string): void => {
+  if (process.env.WHITEBOARD_DEBUG === '1') process.stderr.write(`[whiteboard-mcp] ${msg}\n`);
+};
 
 export interface McpServerOptions {
   input?: Readable;
@@ -59,6 +62,7 @@ export function startMcpServer(opts: McpServerOptions = {}): JsonRpcConnection {
           const p = isObject(params) ? params : {};
           clientWantsRoots = isObject(p.capabilities) && isObject(p.capabilities.roots);
           ctx.apps = clientSupportsApps(p.capabilities);
+          debug(`initialize: ${isObject(p.clientInfo) ? String(p.clientInfo.name) : 'unknown client'}, MCP Apps ${ctx.apps ? 'on' : 'off'}`);
           const requested = typeof p.protocolVersion === 'string' ? p.protocolVersion : '';
           return {
             protocolVersion: SUPPORTED_PROTOCOL_VERSIONS.includes(requested) ? requested : SUPPORTED_PROTOCOL_VERSIONS[0],
@@ -76,6 +80,7 @@ export function startMcpServer(opts: McpServerOptions = {}): JsonRpcConnection {
           return { resources: [BOARD_RESOURCE] };
         case 'resources/read': {
           if (!isObject(params) || params.uri !== BOARD_URI) throw new RpcError(INVALID_PARAMS, `Unknown resource: ${isObject(params) ? String(params.uri) : ''}`);
+          debug(`resources/read ${BOARD_URI}`);
           return readBoardResource();
         }
         case 'resources/templates/list':
