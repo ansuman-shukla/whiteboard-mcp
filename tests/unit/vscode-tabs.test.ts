@@ -21,11 +21,17 @@ interface FakePanel {
 }
 
 /** Just enough of the vscode API for webview tabs, recording what the extension does. */
-function fakeVscode({ theme = 2 } = {}) {
+function fakeVscode({ theme = 2, commands = [] as string[] } = {}) {
   const created: FakePanel[] = [];
+  const executed: unknown[][] = [];
   let nextColumn = 2;
   const vscode = {
     ViewColumn: { Beside: BESIDE },
+    Uri: { parse: (value: string) => ({ uri: value }) },
+    commands: {
+      getCommands: async () => commands,
+      executeCommand: async (...args: unknown[]) => void executed.push(args),
+    },
     ColorThemeKind: { Light: 1, Dark: 2, HighContrast: 3, HighContrastLight: 4 },
     ThemeIcon: class {
       constructor(readonly id: string) {}
@@ -61,7 +67,7 @@ function fakeVscode({ theme = 2 } = {}) {
       },
     },
   };
-  return { vscode, created };
+  return { vscode, created, executed };
 }
 
 const board = (id: string, port = 47428) => `http://127.0.0.1:${port}/c/${id}?token=tok`;
@@ -135,5 +141,31 @@ describe('BoardTabs', () => {
     expect(() => tabs.show('z', 'https://127.0.0.1:1/c/z', 'Z')).toThrow(/Only local/);
     expect(created).toHaveLength(2);
     expect(tabs.tabs.size).toBe(2);
+  });
+
+  describe('in the built-in browser (whiteboardMcp.openIn = "browser")', () => {
+    it("opens the board in VS Code's integrated browser beside the chat, reusing that board's page", async () => {
+      const { vscode, created, executed } = fakeVscode({ commands: ['workbench.action.browser.open', 'simpleBrowser.api.open'] });
+      const tabs = new BoardTabs(vscode, () => 'browser');
+      await tabs.show('app-111111', board('app-111111'), 'How MCP works');
+      expect(created).toEqual([]);
+      expect(executed).toEqual([
+        ['workbench.action.browser.open', { url: 'http://127.0.0.1:47428/c/app-111111?token=tok&embed=1&theme=dark', openToSide: true, reuseUrlFilter: 'http://127.0.0.1:47428/c/app-111111' }],
+      ]);
+    });
+
+    it('uses Simple Browser in editors without the integrated browser', async () => {
+      const { vscode, created, executed } = fakeVscode({ commands: ['simpleBrowser.api.open'] });
+      await new BoardTabs(vscode, () => 'browser').show('app-111111', board('app-111111'), 'How MCP works');
+      expect(created).toEqual([]);
+      expect(executed).toEqual([['simpleBrowser.api.open', { uri: 'http://127.0.0.1:47428/c/app-111111?token=tok&embed=1&theme=dark' }, { viewColumn: BESIDE, preserveFocus: true }]]);
+    });
+
+    it('falls back to a board tab when the editor has no built-in browser', async () => {
+      const { vscode, created, executed } = fakeVscode();
+      await new BoardTabs(vscode, () => 'browser').show('app-111111', board('app-111111'), 'How MCP works');
+      expect(executed).toEqual([]);
+      expect(created).toHaveLength(1);
+    });
   });
 });

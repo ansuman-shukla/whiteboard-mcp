@@ -16,7 +16,7 @@ async function openBoard(host, tabs) {
     board,
   }));
   const chosen = items.length === 1 ? items[0] : await vscode.window.showQuickPick(items, { placeHolder: 'Open a whiteboard from this workspace' });
-  if (chosen) tabs.show(chosen.board.id, host.viewerUrl(chosen.board.id), chosen.label);
+  if (chosen) await tabs.show(chosen.board.id, host.viewerUrl(chosen.board.id), chosen.label);
 }
 
 function activate(context) {
@@ -27,7 +27,7 @@ function activate(context) {
   // The extension host is this window's process: its pid names the window, as in Windsurf and Devin Desktop,
   // whose chats already carry it as WINDSURF_EXT_HOST_PID.
   const hostId = String(process.pid);
-  const tabs = new BoardTabs(vscode);
+  const tabs = new BoardTabs(vscode, () => vscode.workspace.getConfiguration('whiteboardMcp').get('openIn', 'tab'));
   const host = new WhiteboardHost({
     home: whiteboardHome(vscode.workspace.getConfiguration('whiteboardMcp').get('home')),
     hostId,

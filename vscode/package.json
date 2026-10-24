@@ -38,6 +38,19 @@
     "configuration": {
       "title": "Whiteboard MCP",
       "properties": {
+        "whiteboardMcp.openIn": {
+          "type": "string",
+          "enum": [
+            "tab",
+            "browser"
+          ],
+          "enumDescriptions": [
+            "A Whiteboard tab beside the chat.",
+            "The editor's built-in browser beside the chat (integrated browser or Simple Browser), with its address bar and back/forward; a Whiteboard tab where the editor has none."
+          ],
+          "default": "tab",
+          "description": "Where boards your agents draw open."
+        },
         "whiteboardMcp.home": {
           "type": "string",
           "default": "",
