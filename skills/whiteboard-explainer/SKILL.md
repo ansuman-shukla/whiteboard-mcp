@@ -22,6 +22,17 @@ A live whiteboard shared with the user. You draw through the `whiteboard-mcp` MC
 6. **Update, don't redraw**: re-send an existing id with only the fields that change (`{"id":"api","x":400}`, `{"id":"db","label":"Postgres"}`). Use `canvas_delete` for removals. Start over only with `canvas_open {"fresh":true}`.
 7. **Keep it**: when a drawing is worth reusing or the user asks to save it, `canvas_save {"name":"<topic>"}` stores a frozen copy in the user's library (the user can also save from the board's menu or with Cmd/Ctrl+S). In a later chat, in any workspace, `canvas_search {"query":"<words>"}` finds other chats' live boards and saved copies: `canvas_open {"board":"<id>"}` opens a live one, `canvas_open {"saved":"<id>"}` loads a copy into this chat's board (add `"fresh":true` if the board already has a drawing). When the user names a board loosely and `canvas_open {board}` doesn't find it, it lists the closest boards: pick the one they meant by id.
 
+## Editing an existing drawing
+
+When the user asks to change a drawing that's already there ("put a cache between the API and the DB"):
+
+1. **Read first**: `canvas_read` (or the `canvas_open` result) lists every element with its id, label, position, size and what each arrow connects. Work from those ids and coordinates, never from memory of what you drew earlier: the user may have moved or edited things.
+2. **Edit by id**: re-send only the fields that change, in one `canvas_draw`. Make room by moving existing shapes (`{"id":"db","x":520}`), then add the new ones in the freed space. Shapes the user drew have generated ids; use them as listed.
+3. **Re-point arrows**: change an existing arrow's ends (`{"id":"q","to":"cache"}`) rather than deleting and redrawing it. Arrows follow the shapes they're bound to when those move.
+4. **Delete**: `canvas_delete {"ids":["old"]}` for what goes away. Arrows bound to a deleted shape are detached, not deleted: re-point or delete them too.
+5. **Focus**: `canvas_focus {"ids":["cache"],"highlight":true}` on what changed, and say in a sentence what changed and why.
+6. **Check**: one `canvas_screenshot` after bigger edits; fix overlaps or cut-off labels with `canvas_draw` on the same ids.
+
 ## Where the board shows, and setting it up
 
 The tools put the board in front of the user themselves; read the `canvas_open` result to know where:
