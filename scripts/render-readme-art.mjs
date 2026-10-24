@@ -55,10 +55,10 @@ function logo(x, y, s) {
 }
 
 function hero(t) {
-  const label = 'whiteboard-mcp: a live whiteboard your coding agent draws on. You draw back.';
+  const label = 'Whiteboard MCP: a live whiteboard your coding agent draws on. You draw back.';
   return svg(260, label, [
     logo(40, 70, 120),
-    text(196, 154, 'whiteboard-mcp', { size: 76, cls: 'serif', fill: t.head, weight: 700 }),
+    text(196, 154, 'Whiteboard MCP', { size: 76, cls: 'serif', fill: t.head, weight: 700 }),
     text(1560, 92, 'A live whiteboard your', { size: 46, fill: t.head, weight: 600, anchor: 'end' }),
     text(1560, 150, 'coding agent draws on.', { size: 46, fill: t.head, weight: 600, anchor: 'end' }),
     text(1560, 208, 'You draw back.', { size: 46, fill: t.faint, weight: 600, anchor: 'end' }),
@@ -74,7 +74,7 @@ function features(t) {
     ['Local and private', ['Runs on 127.0.0.1 with a token.', 'Nothing leaves your machine.'], ORANGE, ICONS.lock],
     ['Tiny', ['One runtime dependency and about', '7 KB of tool schema per turn.'], VIOLET, ICONS.feather],
   ];
-  const label = `Why whiteboard-mcp: ${items.map(([h, d]) => `${h}: ${d.join(' ')}`).join(' ')}`;
+  const label = `Why Whiteboard MCP: ${items.map(([h, d]) => `${h}: ${d.join(' ')}`).join(' ')}`;
   const tw = 456, th = 300, gx = 32, x0 = 80, y0 = 64;
   const height = y0 * 2 + th * 2 + gx;
   const tiles = items.map(([h, d, c, ic], i) => {
@@ -117,7 +117,7 @@ function compare(t) {
     ['Animated camera moves', 'no', '', 'yes', ''],
     ['Zero install (hosted URL)', 'no', 'One npx line, runs locally', 'yes', ''],
   ];
-  const label = `whiteboard-mcp vs Excalidraw MCP. ${rows.map(([f, a, an, b, bn]) => `${f}: whiteboard-mcp ${a}${an ? ` (${an})` : ''}, Excalidraw MCP ${b}${bn ? ` (${bn})` : ''}.`).join(' ')}`;
+  const label = `Whiteboard MCP vs Excalidraw MCP. ${rows.map(([f, a, an, b, bn]) => `${f}: Whiteboard MCP ${a}${an ? ` (${an})` : ''}, Excalidraw MCP ${b}${bn ? ` (${bn})` : ''}.`).join(' ')}`;
   const mark = (x, y, v) => {
     if (v === 'yes') return `<g transform="translate(${x} ${y})"><circle r="17" fill="${t.yes}"/><path d="M-8 0l5 5 10-10" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></g>`;
     if (v === 'part') return `<g transform="translate(${x} ${y})"><circle r="17" fill="none" stroke="${ORANGE}" stroke-width="3.2"/><path d="M0 -17a17 17 0 0 1 0 34z" fill="${ORANGE}"/></g>`;
@@ -127,7 +127,7 @@ function compare(t) {
   const h = top + rows.length * rh + 60;
   const body = [
     card(h, t),
-    text(cA, 90, 'whiteboard-mcp', { size: 26, fill: t.head, weight: 700 }),
+    text(cA, 90, 'Whiteboard MCP', { size: 26, fill: t.head, weight: 700 }),
     text(cB, 90, 'Excalidraw MCP', { size: 26, fill: t.faint, weight: 700 }),
     ...rows.map(([f, a, an, b, bn], i) => {
       const y = top + i * rh, mid = y + rh / 2;
@@ -148,7 +148,7 @@ function compare(t) {
 // npx playwright screenshot --viewport-size=1280,640 file://$PWD/docs/media/readme/social.svg docs/media/social-preview.png
 function social(t) {
   const w = 1280, h = 640;
-  const label = 'whiteboard-mcp: a local Excalidraw whiteboard MCP server. Your coding agent draws, you draw back.';
+  const label = 'Whiteboard MCP: a local Excalidraw whiteboard MCP server. Your coding agent draws, you draw back.';
   const chips = ['Claude Code', 'Codex', 'Cursor', 'Gemini CLI', 'VS Code', 'Windsurf'];
   let x = 96;
   const chipEls = chips.map((c) => {
@@ -160,7 +160,7 @@ function social(t) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(label)}">\n<title>${esc(label)}</title>\n${STYLE}\n${[
     `<rect width="${w}" height="${h}" fill="${t.card}"/>`,
     logo(96, 96, 112),
-    text(236, 176, 'whiteboard-mcp', { size: 80, cls: 'serif', fill: t.head, weight: 700 }),
+    text(236, 176, 'Whiteboard MCP', { size: 80, cls: 'serif', fill: t.head, weight: 700 }),
     text(96, 300, 'A live whiteboard your coding agent', { size: 52, fill: t.head, weight: 600 }),
     text(96, 366, 'draws on. You draw back.', { size: 52, fill: t.faint, weight: 600 }),
     text(96, 440, 'Local, offline Excalidraw MCP server · free and open source', { size: 30, fill: t.body }),
@@ -178,9 +178,14 @@ function social(t) {
   ].join('\n')}\n</svg>\n`;
 }
 
+// 400x400 icon for MCP directories. PNG:
+// screenshot docs/media/readme/logo.svg at 400x400 with a transparent background (Playwright omitBackground) to docs/media/logo-400.png
+const icon = () => `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400" role="img" aria-label="Whiteboard MCP logo">\n${logo(0, 0, 400)}\n</svg>\n`;
+
 mkdirSync(OUT, { recursive: true });
+writeFileSync(join(OUT, 'logo.svg'), icon());
 for (const [name, render] of Object.entries({ hero, features, steps, compare })) {
   for (const [theme, t] of Object.entries(THEMES)) writeFileSync(join(OUT, `${name}-${theme}.svg`), render(t));
 }
 writeFileSync(join(OUT, 'social.svg'), social(THEMES.light));
-console.log(`wrote 9 cards to ${OUT}`);
+console.log(`wrote 10 files to ${OUT}`);

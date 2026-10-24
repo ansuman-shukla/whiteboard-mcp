@@ -1,4 +1,4 @@
-# whiteboard-mcp
+# Whiteboard MCP
 
 A lightweight local Excalidraw canvas that coding agents draw on live, side by side with a human, to explain things. The human can draw back and leave notes; the agent reads those changes. Exposed as an MCP stdio server (any MCP client) and as a plain CLI (`whiteboard-mcp call <tool> '<json>'`) for harnesses without MCP.
 
@@ -30,9 +30,12 @@ agent ──stdio JSON-RPC──▶ whiteboard-mcp (MCP server, one per agent se
 - `frontend/`: React + Excalidraw viewer; live bidirectional sync using Excalidraw's version/versionNonce reconciliation. The transport is pluggable (`OpenLink`): a WebSocket in the browser, the MCP Apps relay inline.
 - MCP Apps (`src/mcp/apps.ts`, `frontend/src/app-main.tsx`, `bridge.ts`, `app-fonts.ts`, `vite.app.config.ts`): for clients advertising `io.modelcontextprotocol/ui`, canvas_open links the `ui://whiteboard-mcp/board.html` resource (one self-contained file, `dist/app/board.html`, fonts inlined) and the host renders the board inline. The sandboxed iframe can't reach the daemon, so it relays through the app-only `canvas_view` tool, which holds a viewer WebSocket per view (long poll; only polls drain, one at a time, so messages stay ordered). UI `_meta` and `canvas_view` are listed only for those clients. Docs: `docs/inline.md`.
 - `vscode/`: the IDE panel extension (plain CommonJS, no dependencies, VS Code 1.101+ for the global WebSocket): `host.js` (panel host: daemon.json + token, watched and retried, hello with `hostId` = extension host pid, reconnect; activates on `*` so agent extensions inherit the window id), `tabs.js` (one webview tab per board, never retarget another board's tab), `window.js` (sets `WHITEBOARD_HOST_ID` for integrated terminals via the environment variable collection, non-persistent, and in the extension host's own env, which VS Code's MCP servers and agent extensions inherit). `scripts/build-vsix.mjs` zips it into a .vsix without vsce. Docs: `docs/ide-panel.md`.
+- `site/`: static landing page on GitHub Pages (`.github/workflows/pages.yml` copies `docs/media` GIFs and `social-preview.png` into `site/media/` at deploy), plus `llms.txt`, `robots.txt`, `sitemap.xml`. Its FAQ (text and FAQPage JSON-LD) mirrors the README FAQ: change both together.
+- `server.json`: official MCP registry entry; its name and version must match `mcpName` and `version` in package.json (`tests/unit/registry.test.ts`). After `npm publish` (new versions take ~5+ min to appear), run `mcp-publisher publish`.
 
 ## Rules
 
+- Name: write **Whiteboard MCP** in prose, titles, alt text and art (bold on a page's first mention). `whiteboard-mcp` only where it's an identifier: npm package, binary/CLI commands, repo and URLs, paths like `~/.whiteboard-mcp`, `serverInfo`, extension id, architecture diagrams naming the process.
 - Runtime dependencies: `ws` only. Everything else (Excalidraw, React, MCP SDK for tests) is a devDependency; the frontend is prebuilt into `dist/frontend`.
 - Never write to stdout from the MCP server except JSON-RPC frames. Logs go to stderr (only when `WHITEBOARD_DEBUG=1`) or the state dir.
 - Never read the user's project `.env`, never write files into the user's working directory unless a tool is asked to export there.

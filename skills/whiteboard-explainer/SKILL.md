@@ -1,6 +1,6 @@
 ---
 name: whiteboard-explainer
-description: Explain code, architecture, data flows, algorithms, plans or trade-offs visually on a live Excalidraw whiteboard (whiteboard-mcp) shown to the user beside the chat (they can draw on it or annotate). Use when a diagram would explain better than prose, when the user asks to "draw", "sketch", "diagram", "visualise" or "show" something, or when they mention the canvas, the whiteboard or something they drew.
+description: Explain code, architecture, data flows, algorithms, plans or trade-offs visually on a live Excalidraw whiteboard (Whiteboard MCP) shown to the user beside the chat (they can draw on it or annotate). Use when a diagram would explain better than prose, when the user asks to "draw", "sketch", "diagram", "visualise" or "show" something, or when they mention the canvas, the whiteboard or something they drew.
 ---
 
 # Excalidraw explainer
