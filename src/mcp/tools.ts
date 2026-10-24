@@ -1,14 +1,15 @@
-import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, extname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { CanvasClient, CanvasError } from '../canvas/client.js';
 import { describeChanges, describeScene } from '../shared/describe.js';
 import { ELEMENT_SPEC_FIELDS, buildElements, deleteElements, type ElementSpec } from '../shared/elements.js';
 import type { CanvasSummary, ChangesResponse, ExElement, MermaidResult, SavedSummary, ScreenshotResult } from '../shared/protocol.js';
 import { BOARD_RESULT_META, BOARD_SHOWN_META, BOARD_TOOL_META } from './apps.js';
+import { editorWindow, type EditorWindow } from './editor.js';
 import { closestBoards, findBoard, whereFrom } from './find.js';
 import { GUIDE } from './guide.js';
-import { editorWindow, type EditorWindow } from './editor.js';
 import { openViewer } from './open.js';
 import { stripNulls, validate, type Schema } from './schema.js';
 import type { CanvasRef, Session } from './session.js';
@@ -77,6 +78,25 @@ export class ToolContext {
 
 /** Where boards go when nobody can see them in this editor: how to get the panel. */
 const PANEL_DOCS = 'https://github.com/ansuman-shukla/whiteboard-mcp/blob/main/docs/ide-panel.md';
+
+/** The panel extension shipped in this package (dist/vscode), which the agent can install with the human's OK. */
+function bundledExtension(): string | undefined {
+  try {
+    const dir = fileURLToPath(new URL('../vscode/', import.meta.url));
+    const file = readdirSync(dir).find((name) => name.endsWith('.vsix'));
+    return file && join(dir, file);
+  } catch {
+    return undefined;
+  }
+}
+
+function noPanelNote(): string {
+  const vsix = bundledExtension();
+  const install = vsix
+    ? `Offer to set it up: with the human's OK, run \`code --install-extension "${vsix}"\` (\`cursor\`, \`windsurf\`, \`kiro\` or \`antigravity\` instead of \`code\` in those editors; if your sandbox blocks it, give the human the command), then call canvas_open again. No restart needed.`
+    : `Ask the human to install it (${PANEL_DOCS}), then call canvas_open again.`;
+  return `No whiteboard panel is connected in this editor, so the human can't see the board yet. The Whiteboard MCP editor extension shows boards in a tab beside the chat. ${install} Do not open the board in a browser or preview tool yourself.`;
+}
 const SHOWN_BESIDE = 'Shown to the human beside the chat.';
 /** The Claude desktop app, whose Browser pane shows a page beside the chat. */
 const claudeDesktop = (): boolean => process.env.CLAUDE_CODE_ENTRYPOINT === 'claude-desktop';
@@ -163,10 +183,7 @@ export class ChatContext {
       return opened ? { launched: true, note: `${note}.` } : { launched: false, note: `${note}, so the human can't see the board yet; ask them to open ${url}.` };
     }
     // No link here: agents open any link they get, and a browser is what the panel replaces.
-    return {
-      launched: false,
-      note: `No whiteboard panel is connected in this editor, so the human can't see the board yet. Tell them to install the Whiteboard MCP editor extension (${PANEL_DOCS}), then run "Whiteboard: Open Board" from the command palette. Do not open the board in a browser or preview tool yourself.`,
-    };
+    return { launched: false, note: noPanelNote() };
   }
 
   /** Shows the board and waits until a viewer is connected; false if none arrives. */

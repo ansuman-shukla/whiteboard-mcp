@@ -603,8 +603,10 @@ describe('showing boards', () => {
     const client = await connect({ env: { WINDSURF_EXT_HOST_PID: '1', WHITEBOARD_OPEN: '' } });
     const { text } = await call(client, 'canvas_open');
     expect(text).toContain('No whiteboard panel is connected');
-    expect(text).toContain('install the Whiteboard MCP editor extension (https://github.com/ansuman-shukla/whiteboard-mcp/blob/main/docs/ide-panel.md)');
-    expect(text).toContain('Whiteboard: Open Board');
+    // The package ships the extension: the agent can install it with the human's OK.
+    const vsix = /code --install-extension "([^"]+\.vsix)"/.exec(text)?.[1];
+    expect(vsix && existsSync(vsix)).toBe(true);
+    expect(text).toContain("with the human's OK");
     expect(text).toContain('Do not open the board in a browser or preview tool yourself');
     expect(text).not.toMatch(/\/c\/[a-z0-9-]+\?token=/);
   });
