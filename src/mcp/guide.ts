@@ -1,9 +1,9 @@
-export const INSTRUCTIONS = `Live whiteboard shown to the human beside the chat: you draw, they watch and can draw back or leave notes. Use it whenever a picture explains better than text (architecture, flows, sequences, state machines, data structures, comparisons). Each chat has its own board; call canvas_guide once, then canvas_open with a topic title, and draw step by step while narrating briefly. The tools show the board to the human themselves: never open board links in a browser or preview tool unless a tool result says to. To build on another chat's drawing (any folder), canvas_open {board}; canvas_search finds boards and saved copies (canvas_save). When the human mentions the board, call canvas_read.`;
+export const INSTRUCTIONS = `Live whiteboard shown to the human beside the chat: you draw, they watch and can draw back or leave notes. Use it whenever a picture explains better than text (architecture, flows, sequences, state machines, data structures, comparisons). Each chat has its own board; call canvas_guide once, then canvas_open with a topic title, and draw step by step while narrating briefly. The tools show the board themselves; open board links they give you in your in-app browser or preview tool, never an external browser. To build on another chat's drawing (any folder), canvas_open {board}; canvas_search finds boards and saved copies (canvas_save). When the human mentions the board, call canvas_read.`;
 
 export const GUIDE = `# Explaining on the live canvas
 
 ## Loop
-1. canvas_open {title:"<topic>"} once: it shows this chat's board beside the chat. Open board links only where a tool result says to. Plan: 3-8 boxes beat 30.
+1. canvas_open {title:"<topic>"} once: it shows this chat's board beside the chat. Board links go in your in-app browser or preview tool. Plan: 3-8 boxes beat 30.
 2. Draw in steps: one canvas_draw per idea (components, then flow, then notes), each followed by a sentence or two in chat that points at the canvas ("the blue boxes are services"). Keep chat short; the canvas carries the detail.
 3. canvas_focus {ids, highlight:true} to point at what you are talking about.
 4. canvas_screenshot once after the main layout to check overlaps and cut-off text.

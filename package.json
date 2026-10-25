@@ -15,7 +15,7 @@
   ],
   "scripts": {
     "build": "npm run build:frontend && npm run build:server && node scripts/build-vsix.mjs dist/vscode",
-    "build:frontend": "vite build && vite build -c vite.app.config.ts",
+    "build:frontend": "vite build",
     "build:server": "tsc -p tsconfig.json && node -e \"require('fs').chmodSync('dist/cli.js',0o755)\"",
     "build:vscode": "node scripts/build-vsix.mjs",
     "readme:art": "node scripts/render-readme-art.mjs",
