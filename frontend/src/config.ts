@@ -1,5 +1,4 @@
 import { API } from '../../src/shared/protocol';
-import { connect, type OpenLink } from './connection';
 
 export type ThemePreference = 'light' | 'dark' | 'auto';
 
@@ -8,7 +7,7 @@ export interface ViewerConfig {
   token: string;
   theme: ThemePreference;
   embed: boolean;
-  link: OpenLink;
+  wsUrl: string;
 }
 
 export function readConfig(loc: Location = window.location): ViewerConfig {
@@ -20,7 +19,7 @@ export function readConfig(loc: Location = window.location): ViewerConfig {
   const theme: ThemePreference = themeParam === 'light' || themeParam === 'dark' ? themeParam : 'auto';
   const wsProto = loc.protocol === 'https:' ? 'wss:' : 'ws:';
   const wsUrl = `${wsProto}//${loc.host}${API.ws}?canvas=${encodeURIComponent(canvasId)}&token=${encodeURIComponent(token)}`;
-  return { canvasId, token, theme, embed: params.get('embed') === '1', link: (onMessage, onStatus) => connect(wsUrl, onMessage, onStatus) };
+  return { canvasId, token, theme, embed: params.get('embed') === '1', wsUrl };
 }
 
 /** localStorage can throw (sandboxed iframes, disabled storage, WKWebView quirks). */

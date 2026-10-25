@@ -3,9 +3,6 @@ import { backoffDelay } from './sync';
 
 export type LinkStatus = 'connecting' | 'live' | 'offline';
 
-/** Opens the viewer's link to the daemon: a WebSocket, or the MCP Apps relay when shown inline in a chat. */
-export type OpenLink = (onMessage: (msg: ServerMessage) => void, onStatus: (status: LinkStatus) => void) => Connection;
-
 export interface Connection {
   send(msg: ClientMessage): boolean;
   isOpen(): boolean;

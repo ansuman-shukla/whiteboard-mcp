@@ -56,16 +56,11 @@ export function SaveForm({ initialName, onSave, onClose }: Props) {
         onKeyDown={(e) => {
           e.stopPropagation();
           if (e.key === 'Escape') onClose();
-          else if (e.key === 'Enter') {
-            // Handled here, not by form submission: sandboxed frames without allow-forms (MCP Apps hosts) never submit.
-            e.preventDefault();
-            void submit();
-          }
         }}
       />
       <div className="xl-note-row">
         <span className="xl-hint">Later chats can find it</span>
-        <button type="button" className="xl-send" disabled={!name.trim() || busy} onClick={() => void submit()}>
+        <button type="submit" className="xl-send" disabled={!name.trim() || busy}>
           {busy ? 'Saving…' : 'Save'}
         </button>
       </div>

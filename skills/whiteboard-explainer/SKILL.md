@@ -33,13 +33,12 @@ When the user asks to change a drawing that's already there ("put a cache betwee
 5. **Focus**: `canvas_focus {"ids":["cache"],"highlight":true}` on what changed, and say in a sentence what changed and why.
 6. **Check**: one `canvas_screenshot` after bigger edits; fix overlaps or cut-off labels with `canvas_draw` on the same ids.
 
-## Where the board shows, and setting it up
+## Where the board shows
 
 The tools put the board in front of the user themselves; read the `canvas_open` result to know where:
 
 - **"Shown to the human beside the chat."**: an editor tab beside the chat (VS Code, Cursor, Windsurf and other VS Code-based editors, with the Whiteboard MCP extension). Nothing to do.
-- **"Shown inline in the chat."**: apps that render MCP Apps (Claude desktop app, Codex app, VS Code's own agent without the extension). The result also gives the board link: if you have an in-app browser or preview tool, open it there too so the board stays beside the chat.
-- **"No whiteboard panel is connected in this editor"**: you run inside an editor that lacks the extension. Do both: offer to install it (with the user's OK, run the `--install-extension` command the result gives: `code`, or `cursor`, `windsurf`, `kiro`, `antigravity` for those editors; it works without a restart, then call `canvas_open` again; if your sandbox blocks it, give the user the command), and open the link the result gives in your in-app browser or preview tool right away, so the user sees the board now.
+- **"Open the board in your in-app browser or preview tool"**: no editor tab can show it here (an editor without the extension, or a desktop chat app). Open the link the result gives in your in-app browser or preview tool right away, so the board shows beside the chat.
 - **"opened with open"**: outside an editor (a plain terminal), the board opened in the browser. That's the right place there.
 - **"Nobody is watching the board"**: the user closed it; call `canvas_open` again when you want them to see it.
 

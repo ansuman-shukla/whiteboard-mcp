@@ -22,7 +22,7 @@ command = "npx"
 args = ["-y", "@ansuman-shukla/whiteboard-mcp"]
 ```
 
-The Codex app shows the board inline in the chat ([MCP Apps](inline.md)); don't set `WHITEBOARD_OPEN = "browser"` there, it turns that off. In VS Code (Codex extension or `codex` in the terminal), the [IDE panel extension](ide-panel.md) shows it beside the chat.
+In the Codex app, the agent opens the board in its in-app browser; don't set `WHITEBOARD_OPEN = "browser"` there, it sends boards to your system browser instead. In VS Code (Codex extension or `codex` in the terminal), the [IDE panel extension](ide-panel.md) shows it beside the chat.
 
 ## Devin CLI
 
@@ -48,7 +48,7 @@ This writes `~/.config/devin/mcp_config.json`; `--scope project` writes `.devin/
 { "mcpServers": { "whiteboard": { "command": "npx", "args": ["-y", "@ansuman-shukla/whiteboard-mcp"] } } }
 ```
 
-Chat apps that support [MCP Apps](inline.md) show the board inline in the conversation instead of a browser window.
+In desktop chat apps, the agent opens the board in the app's in-app browser or preview tool instead of a browser window.
 
 ## VS Code
 

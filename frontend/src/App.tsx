@@ -1,7 +1,7 @@
 import { Excalidraw, Footer, MainMenu, WelcomeScreen, useDevice } from '@excalidraw/excalidraw';
 import type { ExcalidrawImperativeAPI, UIOptions } from '@excalidraw/excalidraw/types';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { storage, type ThemePreference, type ViewerConfig } from './config';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { readConfig, storage, type ThemePreference } from './config';
 import type { LinkStatus } from './connection';
 import { createFollower } from './follow';
 import { Icon } from './Icon';
@@ -31,17 +31,9 @@ function useTheme(pref: ThemePreference): 'light' | 'dark' {
   return pref === 'auto' ? (systemDark ? 'dark' : 'light') : pref;
 }
 
-interface AppProps {
-  config: ViewerConfig;
-  /** Overrides the config's preference (the MCP Apps host's theme). */
-  theme?: 'light' | 'dark';
-  /** Extra controls beside the status pill. */
-  actions?: React.ReactNode;
-}
-
-export function App({ config, theme: forcedTheme, actions }: AppProps) {
-  const ownTheme = useTheme(config.theme);
-  const theme = forcedTheme ?? ownTheme;
+export function App() {
+  const config = useMemo(() => readConfig(), []);
+  const theme = useTheme(config.theme);
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const [status, setStatus] = useState<LinkStatus>('connecting');
   const [viewers, setViewers] = useState(0);
@@ -63,7 +55,7 @@ export function App({ config, theme: forcedTheme, actions }: AppProps) {
     if (!api || !config.canvasId) return;
     window.__excalidrawAPI = api;
     const follower = createFollower(api, () => followRef.current);
-    const session = startLive(api, config.link, {
+    const session = startLive(api, config.wsUrl, {
       status: setStatus,
       viewers: setViewers,
       agentDrew: follower.push,
@@ -149,7 +141,6 @@ export function App({ config, theme: forcedTheme, actions }: AppProps) {
         </WelcomeScreen>
         <Chrome>
           {pill}
-          {actions}
           {saving && <SaveForm initialName={title} onSave={save} onClose={closeSave} />}
         </Chrome>
       </Excalidraw>
