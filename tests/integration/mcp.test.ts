@@ -599,16 +599,17 @@ describe('showing boards', () => {
     expect(Date.now() - started).toBeLessThan(5000);
   });
 
-  it('inside an editor without a panel host it opens nothing, says how to get the panel, and hands over no link', async () => {
+  it('inside an editor without a panel host it opens no external browser, offers the extension, and hands over the link for the in-app browser', async () => {
     const client = await connect({ env: { WINDSURF_EXT_HOST_PID: '1', WHITEBOARD_OPEN: '' } });
     const { text } = await call(client, 'canvas_open');
     expect(text).toContain('No whiteboard panel is connected');
-    // The package ships the extension: the agent can install it with the human's OK.
+    expect(text).not.toContain('opened with');
+    // The package ships the extension: the agent offers to install it with the human's OK.
     const vsix = /code --install-extension "([^"]+\.vsix)"/.exec(text)?.[1];
     expect(vsix && existsSync(vsix)).toBe(true);
-    expect(text).toContain("with the human's OK");
-    expect(text).toContain('Do not open the board in a browser or preview tool yourself');
-    expect(text).not.toMatch(/\/c\/[a-z0-9-]+\?token=/);
+    expect(text).toContain("Offer to install the Whiteboard MCP editor extension, which shows boards in a tab beside the chat. With the human's OK, run `code --install-extension");
+    // Either way, the board shows now in the app's own browser.
+    expect(text).toMatch(/Either way, open the board now in your in-app browser or preview tool \(not an external browser\): http:\/\/127\.0\.0\.1:\d+\/c\/[a-z0-9-]+\?token=[0-9a-f]+$/m);
   });
 });
 
@@ -713,17 +714,15 @@ describe('MCP Apps (board inline in the chat)', () => {
     }
   });
 
-  it('in the Claude desktop app it also offers the Browser pane beside the chat', async () => {
-    const client = await connect({ apps: true, env: { WHITEBOARD_CHAT_ID: 'inline-desktop', CLAUDE_CODE_ENTRYPOINT: 'claude-desktop' } });
-    const opened = await call(client, 'canvas_open', { title: 'Desktop' });
-    expect(opened.text).toMatch(/Shown inline in the chat\. To keep it beside the chat, also open it in your built-in Browser pane \(never an external browser\): http:\/\/127\.0\.0\.1:\d+\/c\/[a-z0-9-]+\?token=/);
-    const plain = await connect({ apps: true, env: { WHITEBOARD_CHAT_ID: 'inline-plain', CLAUDE_CODE_ENTRYPOINT: 'cli' } });
-    expect((await call(plain, 'canvas_open', { title: 'Plain' })).text).not.toContain('Browser pane');
+  it('also hands over the link for the in-app browser, in any app', async () => {
+    const client = await connect({ apps: true, env: { WHITEBOARD_CHAT_ID: 'inline-browser' } });
+    const opened = await call(client, 'canvas_open', { title: 'In-app browser' });
+    expect(opened.text).toMatch(/Shown inline in the chat\. To keep it beside the chat, you can also open it in your in-app browser or preview tool \(not an external browser\): http:\/\/127\.0\.0\.1:\d+\/c\/[a-z0-9-]+\?token=/);
   });
 
   it('nudges the agent to canvas_open when nobody watches an inline board', async () => {
     const client = await connect({ apps: true, env: { WHITEBOARD_CHAT_ID: 'inline-nudge' } });
     const { text } = await call(client, 'canvas_draw', { elements: [{ id: 'n', type: 'rectangle', x: 0, y: 0 }] });
-    expect(text).toContain('call canvas_open to show it inline in the chat');
+    expect(text).toMatch(/call canvas_open to show it inline in the chat, or open it in your in-app browser or preview tool \(not an external browser\): http:\/\/127\.0\.0\.1:\d+\/c\//);
   });
 });

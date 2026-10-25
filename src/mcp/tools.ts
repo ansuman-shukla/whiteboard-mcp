@@ -76,7 +76,7 @@ export class ToolContext {
   }
 }
 
-/** Where boards go when nobody can see them in this editor: how to get the panel. */
+/** How to get the panel when nobody can see the board in this editor. */
 const PANEL_DOCS = 'https://github.com/ansuman-shukla/whiteboard-mcp/blob/main/docs/ide-panel.md';
 
 /** The panel extension shipped in this package (dist/vscode), which the agent can install with the human's OK. */
@@ -90,16 +90,18 @@ function bundledExtension(): string | undefined {
   }
 }
 
-function noPanelNote(): string {
+/** Opening the board in the app's own browser keeps it beside the chat; an external browser takes the human away. */
+const IN_APP_BROWSER = 'your in-app browser or preview tool (not an external browser)';
+
+/** Inside an editor without a panel: suggest the extension, and show the board in the in-app browser meanwhile. */
+function noPanelNote(url: string): string {
   const vsix = bundledExtension();
   const install = vsix
-    ? `Offer to set it up: with the human's OK, run \`code --install-extension "${vsix}"\` (\`cursor\`, \`windsurf\`, \`kiro\` or \`antigravity\` instead of \`code\` in those editors; if your sandbox blocks it, give the human the command), then call canvas_open again. No restart needed.`
-    : `Ask the human to install it (${PANEL_DOCS}), then call canvas_open again.`;
-  return `No whiteboard panel is connected in this editor, so the human can't see the board yet. The Whiteboard MCP editor extension shows boards in a tab beside the chat. ${install} Do not open the board in a browser or preview tool yourself.`;
+    ? `With the human's OK, run \`code --install-extension "${vsix}"\` (\`cursor\`, \`windsurf\`, \`kiro\` or \`antigravity\` instead of \`code\` in those editors; if your sandbox blocks it, give the human the command), then call canvas_open again; no restart needed.`
+    : `Suggest the human installs it (${PANEL_DOCS}), then call canvas_open again.`;
+  return `No whiteboard panel is connected in this editor. Offer to install the Whiteboard MCP editor extension, which shows boards in a tab beside the chat. ${install} Either way, open the board now in ${IN_APP_BROWSER}: ${url}`;
 }
 const SHOWN_BESIDE = 'Shown to the human beside the chat.';
-/** The Claude desktop app, whose Browser pane shows a page beside the chat. */
-const claudeDesktop = (): boolean => process.env.CLAUDE_CODE_ENTRYPOINT === 'claude-desktop';
 const SHOW_WAIT_MS = 8000;
 const INLINE_GRACE_MS = 30_000;
 /** WHITEBOARD_OPEN set to a real opener (browser, a command) wins over the inline board. */
@@ -135,8 +137,8 @@ export class ChatContext {
   }
 
   /**
-   * Puts the board in front of the human when nobody is watching it: an IDE panel host first;
-   * otherwise a browser, except inside an IDE where a stray browser window is never wanted.
+   * Puts the board in front of the human when nobody is watching it: an IDE panel host first; otherwise
+   * a browser, except inside an IDE, where the agent opens it in its in-app browser instead.
    */
   async reveal(client: CanvasClient, ref: CanvasRef, viewers: number): Promise<string> {
     return viewers > 0 ? '' : (await this.show(client, ref)).note;
@@ -152,8 +154,7 @@ export class ChatContext {
     const now = Date.now();
     for (const [id, at] of this.base.shownInline) if (now - at > INLINE_GRACE_MS) this.base.shownInline.delete(id);
     this.base.shownInline.set(ref.id, now);
-    const pane = claudeDesktop() ? ` To keep it beside the chat, also open it in your built-in Browser pane (never an external browser): ${client.viewerUrl(ref.id)}` : '';
-    return { note: `Shown inline in the chat.${pane}`, panel: false, inline: true };
+    return { note: `Shown inline in the chat. To keep it beside the chat, you can also open it in ${IN_APP_BROWSER}: ${client.viewerUrl(ref.id)}`, panel: false, inline: true };
   }
 
   /** The client renders MCP Apps and no opener is configured: canvas_open's result shows the board inline. */
@@ -173,8 +174,7 @@ export class ChatContext {
     if (await this.panel(client, ref)) return { launched: true, note: SHOWN_BESIDE };
     const url = client.viewerUrl(ref.id);
     if (this.inlineCapable) {
-      const pane = claudeDesktop() ? `, or open ${url} in your built-in Browser pane beside the chat` : '';
-      return { launched: false, note: `Nobody is watching the board: call canvas_open to show it inline in the chat${pane}.` };
+      return { launched: false, note: `Nobody is watching the board: call canvas_open to show it inline in the chat, or open it in ${IN_APP_BROWSER}: ${url}` };
     }
     const mode = process.env.WHITEBOARD_OPEN?.trim();
     if (mode === 'none') return { launched: false, note: `Nobody is watching the board; the human can open ${url}.` };
@@ -182,8 +182,7 @@ export class ChatContext {
       const { opened, note } = await openViewer(url);
       return opened ? { launched: true, note: `${note}.` } : { launched: false, note: `${note}, so the human can't see the board yet; ask them to open ${url}.` };
     }
-    // No link here: agents open any link they get, and a browser is what the panel replaces.
-    return { launched: false, note: noPanelNote() };
+    return { launched: false, note: noPanelNote(url) };
   }
 
   /** Shows the board and waits until a viewer is connected; false if none arrives. */

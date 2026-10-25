@@ -20,7 +20,7 @@ It works for:
 
 Requires VS Code 1.101 or later (its extension host is Node 22 with a built-in WebSocket), or an editor built on that base, such as Cursor 2.1+. Older editors show a warning and the extension stays idle.
 
-The extension isn't on the Marketplace or Open VSX yet, but the npm package ships it (`dist/vscode/whiteboard-mcp-<version>.vsix`). When an agent inside an editor draws and no panel is connected, the tool result gives it the exact `code --install-extension …` command for that file; the agent asks you, runs it (or hands it to you) and shows the board again. The window picks the extension up without a restart.
+The extension isn't on the Marketplace or Open VSX yet, but the npm package ships it (`dist/vscode/whiteboard-mcp-<version>.vsix`). When an agent inside an editor draws and no panel is connected, the tool result gives it the exact `code --install-extension …` command for that file, which the agent offers to run (or hands to you); the window picks the extension up without a restart. Meanwhile the agent opens the board link in its in-app browser or preview tool, so you see the board right away.
 
 To install it yourself, build the `.vsix` from a clone:
 
@@ -67,7 +67,7 @@ window's extension host (pid 4242) ── panel host: hello {hostId: "4242", fol
 
 ## Troubleshooting
 
-**The agent says "No whiteboard panel is connected"**
+**The agent says "No whiteboard panel is connected"** (it shows the board in its in-app browser meanwhile)
 
 - Is the extension installed and enabled in this window? An editor older than VS Code 1.101 shows a warning when it starts.
 - In the agent's terminal, `echo $WHITEBOARD_HOST_ID` should print a number. Empty: the terminal (or agent) was started before the extension activated; open a new terminal and restart the agent there.

@@ -38,12 +38,12 @@ When the user asks to change a drawing that's already there ("put a cache betwee
 The tools put the board in front of the user themselves; read the `canvas_open` result to know where:
 
 - **"Shown to the human beside the chat."**: an editor tab beside the chat (VS Code, Cursor, Windsurf and other VS Code-based editors, with the Whiteboard MCP extension). Nothing to do.
-- **"Shown inline in the chat."**: apps that render MCP Apps (Claude desktop app, Codex app, VS Code's own agent without the extension). In the Claude desktop app the result also gives a link for your built-in Browser pane: open it there (`preview_start`) so the board stays beside the chat.
-- **"No whiteboard panel is connected in this editor"**: you run inside an editor that lacks the extension. Set it up instead of working around it: ask the user, then run the `--install-extension` command the result gives (`code`, or `cursor`, `windsurf`, `kiro`, `antigravity` for those editors) and call `canvas_open` again. It works without a restart. If your sandbox blocks the command, give the user the command to run.
+- **"Shown inline in the chat."**: apps that render MCP Apps (Claude desktop app, Codex app, VS Code's own agent without the extension). The result also gives the board link: if you have an in-app browser or preview tool, open it there too so the board stays beside the chat.
+- **"No whiteboard panel is connected in this editor"**: you run inside an editor that lacks the extension. Do both: offer to install it (with the user's OK, run the `--install-extension` command the result gives: `code`, or `cursor`, `windsurf`, `kiro`, `antigravity` for those editors; it works without a restart, then call `canvas_open` again; if your sandbox blocks it, give the user the command), and open the link the result gives in your in-app browser or preview tool right away, so the user sees the board now.
 - **"opened with open"**: outside an editor (a plain terminal), the board opened in the browser. That's the right place there.
 - **"Nobody is watching the board"**: the user closed it; call `canvas_open` again when you want them to see it.
 
-Never open board links in a browser or preview tool yourself, except where a result tells you to (the Claude desktop Browser pane). A stray browser window is exactly what the panel and inline views replace.
+Board links go in your in-app browser or preview tool (the editor's or app's built-in browser beside the chat), never an external browser: that would take the user out of the app.
 
 ## Element cheatsheet
 
