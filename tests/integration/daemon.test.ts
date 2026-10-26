@@ -157,12 +157,23 @@ describe('http security', () => {
   it('checks token, Host and Origin on WebSocket upgrades', async () => {
     const d = await start();
     expect(await wsStatus(d, `canvas=c1&token=${d.token}`, { origin: 'http://evil.example' })).toMatch(/403/);
-    expect(await wsStatus(d, `canvas=c1&token=${d.token}`, { origin: `http://127.0.0.1:${d.port + 1}` })).toMatch(/403/);
     expect(await wsStatus(d, `canvas=c1&token=${d.token}`, { headers: { Host: `evil.example:${d.port}` } })).toMatch(/403/);
     expect(await wsStatus(d, 'canvas=c1&token=wrong')).toMatch(/401/);
     expect(await wsStatus(d, `canvas=Bad..Id&token=${d.token}`)).toMatch(/400/);
     expect(await wsStatus(d, `canvas=c1&token=${d.token}`, { origin: `http://localhost:${d.port}` })).toBe('open');
     expect(await wsStatus(d, `canvas=c1&token=${d.token}`)).toBe('open');
+  });
+
+  it('accepts viewers behind a loopback proxy on another port, still rejecting lookalike origins', async () => {
+    const d = await start();
+    const query = `canvas=c1&token=${d.token}`;
+    for (const origin of [`http://127.0.0.1:${d.port + 1}`, `http://localhost:${d.port + 1}`, 'http://localhost']) {
+      expect(await wsStatus(d, query, { origin })).toBe('open');
+    }
+    for (const origin of [`http://127.0.0.1.evil.example:${d.port}`, `http://localhost.evil.example`, `https://evil.example/http://127.0.0.1:${d.port}`, `http://user@127.0.0.1:${d.port}`, `http://127.0.0.1:${d.port}/x`, `https://127.0.0.1:${d.port}`, `ws://127.0.0.1:${d.port}`, 'null', 'http://127.0.0.2']) {
+      expect(await wsStatus(d, query, { origin })).toMatch(/403/);
+    }
+    expect(await wsStatus(d, 'canvas=c1&token=wrong', { origin: `http://127.0.0.1:${d.port + 1}` })).toMatch(/401/);
   });
 });
 

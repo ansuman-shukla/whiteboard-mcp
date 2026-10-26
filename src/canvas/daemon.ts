@@ -103,6 +103,19 @@ function contains(folder: string, target: string): boolean {
   return rel === '' || (!!rel && !rel.startsWith('..') && !isAbsolute(rel));
 }
 
+/**
+ * A page served from this machine on any port, so viewers behind a local preview proxy (an editor's
+ * in-app browser) can connect. The token still guards every socket; this only keeps remote sites out.
+ */
+function isLoopbackOrigin(origin: string): boolean {
+  try {
+    const url = new URL(origin);
+    return url.protocol === 'http:' && (url.hostname === '127.0.0.1' || url.hostname === 'localhost') && url.origin === origin;
+  } catch {
+    return false;
+  }
+}
+
 const MAX_BODY_BYTES = 30 * 1024 * 1024;
 const MAX_SOCKET_BUFFER = 64 * 1024 * 1024;
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
@@ -236,7 +249,6 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
   const hostGraceMs = opts.hostGraceMs ?? DEFAULT_HOST_GRACE_MS;
   const timers: NodeJS.Timeout[] = [];
   let allowedHosts = new Set<string>();
-  let allowedOrigins = new Set<string>();
   let lastActivityAt = Date.now();
   let activitySeq = 0;
   let closing: Promise<void> | undefined;
@@ -699,7 +711,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
     if (closing) return rejectUpgrade(socket, 503);
     if (url.pathname !== '/ws' && url.pathname !== API.hostWs) return rejectUpgrade(socket, 404);
     if (!allowedHosts.has(req.headers.host ?? '')) return rejectUpgrade(socket, 403);
-    if (req.headers.origin !== undefined && !allowedOrigins.has(req.headers.origin)) return rejectUpgrade(socket, 403);
+    if (req.headers.origin !== undefined && !isLoopbackOrigin(req.headers.origin)) return rejectUpgrade(socket, 403);
     if (!authorized(req, url)) return rejectUpgrade(socket, 401);
     if (url.pathname === API.hostWs) return wss.handleUpgrade(req, socket, head, onHost);
     const canvasId = url.searchParams.get('canvas') ?? '';
@@ -720,7 +732,6 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
   server.on('error', (err) => log(`server error: ${err.message}`));
   const port = (server.address() as AddressInfo).port;
   allowedHosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`]);
-  allowedOrigins = new Set([`http://127.0.0.1:${port}`, `http://localhost:${port}`]);
 
   const every = (ms: number, fn: () => void) => {
     const t = setInterval(fn, ms);
