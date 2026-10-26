@@ -21,6 +21,7 @@ import {
   type ServerMessage,
   type ViewerRequestType,
 } from '../shared/protocol.js';
+import { loadPrefs, parsePrefs, savePrefs } from './prefs.js';
 import { SavedStore } from './saved.js';
 import { MAX_SEARCH_LIMIT } from './search.js';
 import { CanvasStore, NotFoundError, ValidationError, validateElements } from './store.js';
@@ -251,6 +252,8 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
   const log = opts.log ?? (() => {});
   const store = new CanvasStore({ dir: join(opts.dir ?? stateDir(), 'canvases'), onError: (err) => log(`flush failed: ${String(err)}`) });
   const saved = new SavedStore({ dir: join(opts.dir ?? stateDir(), 'saved') });
+  const prefsFile = statePath('prefs.json', opts.dir ?? stateDir());
+  let prefs = loadPrefs(prefsFile);
 
   const viewersByCanvas = new Map<string, Set<Viewer>>();
   const pending = new Map<string, Pending>();
@@ -646,6 +649,12 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
           if (typeof msg.visible !== 'boolean') throw new ValidationError('visible must be a boolean');
           viewer.visible = msg.visible;
           return;
+        case 'prefs': {
+          prefs = parsePrefs(msg.prefs);
+          savePrefs(prefsFile, prefs);
+          for (const set of viewersByCanvas.values()) for (const other of set) if (other !== viewer) send(other, { t: 'prefs', prefs });
+          return;
+        }
         default:
           throw new ValidationError(`unknown message type ${JSON.stringify(msg.t)}`);
       }
@@ -714,6 +723,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
     try {
       store.ensure(canvasId);
       send(viewer, { t: 'snapshot', canvas: store.snapshot(canvasId, viewers.size) });
+      send(viewer, { t: 'prefs', prefs });
     } catch (err) {
       log(`snapshot failed: ${String(err)}`);
       return void ws.close(1011, 'snapshot failed');
