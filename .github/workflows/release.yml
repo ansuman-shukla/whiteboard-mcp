@@ -1,0 +1,43 @@
+name: Release
+
+# On a published GitHub release: attach the npm package and the IDE panel extension to it, and publish
+# the same package to GitHub Packages so the repo page lists it. npmjs.com is still published by hand.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  assets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          registry-url: https://npm.pkg.github.com
+          scope: '@ansuman-shukla'
+      - name: Tag matches the package version
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: test "$TAG" = "v$(node -p "require('./package.json').version")"
+      - run: npm ci
+      - run: npm run build
+      - name: Pack
+        id: pack
+        run: echo "tgz=$(npm pack --ignore-scripts --silent)" >> "$GITHUB_OUTPUT"
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" "${{ steps.pack.outputs.tgz }}" dist/vscode/*.vsix --clobber
+      - name: Publish to GitHub Packages
+        env:
+          NODE_AUTH_TOKEN: ${{ github.token }}
+        run: npm publish "${{ steps.pack.outputs.tgz }}" --registry https://npm.pkg.github.com
