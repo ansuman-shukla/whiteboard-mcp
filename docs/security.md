@@ -3,7 +3,7 @@
 Everything stays on your machine.
 
 - The daemon listens on `127.0.0.1` only.
-- Every API and WebSocket call needs a random per-user token (`~/.whiteboard-mcp/token`, mode 0600). The viewer URL carries it.
+- Every API and WebSocket call needs a random per-user token (`~/.whiteboard-mcp/token`, mode 0600). The viewer URL carries it in its path (`/c/<board>/<token>/`).
 - Requests with a foreign `Host` header (DNS rebinding) or a WebSocket `Origin` that isn't a page on this machine (`http://127.0.0.1` or `http://localhost`, any port, so an editor's in-app browser proxy works) are rejected. There are no CORS headers, so other web pages can't talk to it.
 - The MCP server never writes outside the workspace/temp, never reads your project's `.env`, and keeps stdout strictly for protocol frames.
 - Fonts are bundled, so the viewer makes no requests to the internet.
