@@ -75,6 +75,10 @@ canvas_open / canvas_draw while nobody is watching
 
 In VS Code, Cursor or Windsurf, install the [IDE panel extension](ide-panel.md) to get the panel. Change the browser fallback with [`WHITEBOARD_OPEN`](configuration.md).
 
+### Light and dark theme
+
+Boards follow your editor's theme in the panel and your system's elsewhere. To pick one yourself, open the board's menu and choose light, dark or system under Theme (or press Alt+Shift+D). The pick is kept in `~/.whiteboard-mcp/prefs.json` and applies to every board, in every viewer, until you choose System again.
+
 ### Panel hosts and window routing
 
 Panel hosts connect to the daemon at `/ws/host` (token-protected) and say which folders they show, plus an optional `hostId` naming their window. A board opens in the chat's own window:

@@ -9,7 +9,7 @@ All settings are environment variables on the MCP server (or CLI) process.
 | `WHITEBOARD_CHAT_COMMAND` | | Command printing the current chat id (run once, without a shell), for hosts that restart MCP servers within a chat |
 | `WHITEBOARD_HOST_ID` | `WINDSURF_EXT_HOST_PID`, else found in the agent's parent processes | The `hostId` of the editor window (panel host) this agent runs in, so its boards open there. Set but empty: no window, and no lookup |
 | `WHITEBOARD_PORT` | `47428` | Daemon port (falls back to a free port if taken by something else) |
-| `WHITEBOARD_HOME` | `~/.whiteboard-mcp` | State: boards, saved boards, token, daemon info, logs |
+| `WHITEBOARD_HOME` | `~/.whiteboard-mcp` | State: boards, saved boards, viewer settings, token, daemon info, logs |
 | `WHITEBOARD_IDLE_MS` | `1800000` | Daemon exits after this long with no viewers or requests (`0` = never) |
 | `WHITEBOARD_WORKSPACE` | MCP root or cwd | Override the workspace used to pick the default board |
 | `WHITEBOARD_EXPORT_DIR` | | Extra directory `canvas_export` may write to (besides the workspace and temp) |
