@@ -146,9 +146,20 @@ export interface FocusResult {
   ok: true;
 }
 
+/** The human's theme for every board: light, dark, or follow the editor's or system's ('system'). */
+export type ThemeChoice = 'light' | 'dark' | 'system';
+export const THEME_CHOICES: readonly ThemeChoice[] = ['light', 'dark', 'system'];
+
+/** Viewer settings the daemon keeps for the user, so every viewer (any board, any browser) shares them. */
+export interface ViewerPrefs {
+  theme: ThemeChoice;
+}
+
 /** Messages sent by the daemon to a browser viewer over WebSocket. */
 export type ServerMessage =
   | { t: 'snapshot'; canvas: CanvasSnapshot }
+  /** Sent on connect and whenever another viewer changes them. */
+  | { t: 'prefs'; prefs: ViewerPrefs }
   | { t: 'elements'; rev: number; actor: Actor; elements: ExElement[]; files?: BinaryFile[] }
   | { t: 'note'; note: CanvasNote }
   | { t: 'request'; reqId: string; type: ViewerRequestType; payload: unknown }
@@ -165,7 +176,9 @@ export type ClientMessage =
   | { t: 'note'; text: string }
   /** Saves the board to the library; the name defaults to the board's title. */
   | { t: 'save'; name?: string }
-  | { t: 'visible'; visible: boolean };
+  | { t: 'visible'; visible: boolean }
+  /** Saves the user's viewer settings and passes them to every other viewer. */
+  | { t: 'prefs'; prefs: ViewerPrefs };
 
 /**
  * Panel hosts (IDE extensions that show boards beside the chat) connect to `API.hostWs`.

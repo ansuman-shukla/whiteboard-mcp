@@ -1,7 +1,7 @@
 import { CaptureUpdateAction, FONT_FAMILY, restoreElements } from '@excalidraw/excalidraw';
 import type { ExcalidrawElement } from '@excalidraw/excalidraw/element/types';
 import type { BinaryFileData, BinaryFiles, ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
-import type { Actor, BinaryFile, CanvasSnapshot, ExElement, SavedSummary, ServerMessage, ViewerRequestType } from '../../src/shared/protocol';
+import type { Actor, BinaryFile, CanvasSnapshot, ExElement, SavedSummary, ServerMessage, ViewerPrefs, ViewerRequestType } from '../../src/shared/protocol';
 import { connect, type LinkStatus } from './connection';
 import { pulseHighlight } from './highlight';
 import { handleRequest, type RequestContext } from './requests';
@@ -14,6 +14,8 @@ export interface LiveEvents {
   agentDrew(ids: string[]): void;
   /** The board's title from the latest snapshot (its id when untitled). */
   title(title: string): void;
+  /** The user's viewer settings, on connect and when another viewer changes them. */
+  prefs(prefs: ViewerPrefs): void;
   dark(): boolean;
 }
 
@@ -21,6 +23,8 @@ export interface Live {
   sendNote(text: string): boolean;
   /** Saves the board, including edits not sent yet, to the library. */
   save(name: string): Promise<SavedSummary>;
+  /** Saves the user's viewer settings for every viewer; false when offline. */
+  setPrefs(prefs: ViewerPrefs): boolean;
   stop(): void;
 }
 
@@ -173,6 +177,8 @@ export function startLive(api: ExcalidrawImperativeAPI, wsUrl: string, ev: LiveE
         return enqueue(() => respond(msg.reqId, msg.type, msg.payload));
       case 'viewers':
         return ev.viewers(msg.count);
+      case 'prefs':
+        return ev.prefs(msg.prefs);
       case 'saved':
         return settleSave(msg.ok ? { saved: msg.saved } : { error: msg.error });
       case 'error':
@@ -203,6 +209,7 @@ export function startLive(api: ExcalidrawImperativeAPI, wsUrl: string, ev: LiveE
 
   return {
     sendNote: (text) => conn.send({ t: 'note', text }),
+    setPrefs: (prefs) => conn.send({ t: 'prefs', prefs }),
     save(name) {
       if (pendingSave) return Promise.reject(new Error('already saving'));
       if (!synced || !conn.isOpen()) return Promise.reject(new Error('offline'));
