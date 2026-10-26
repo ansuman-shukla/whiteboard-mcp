@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { request as httpRequest } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -341,6 +341,42 @@ describe('saved boards', () => {
     v.send({ t: 'save', name: '' });
     expect(await v.take('saved')).toEqual({ t: 'saved', ok: false, error: 'name must be a non-empty string' });
     expect((await apiJson(d, '/api/saved?q=human')).body.map((s: { name: string }) => s.name)).toEqual(['Human sketch', 'Sketch']);
+  });
+});
+
+describe('viewer prefs', () => {
+  it('sends the saved prefs on connect, passes a change to viewers of every board and keeps it across restarts', async () => {
+    const d = await start();
+    const a = await viewer(d, 'c1');
+    expect(await a.take('prefs')).toEqual({ t: 'prefs', prefs: { theme: 'system' } });
+    const b = await viewer(d, 'c2');
+    await b.take('prefs');
+    a.send({ t: 'prefs', prefs: { theme: 'dark' } });
+    expect(await b.take('prefs')).toEqual({ t: 'prefs', prefs: { theme: 'dark' } });
+    await expect(a.take('prefs', undefined, 200)).rejects.toThrow(/no prefs message/);
+    expect(JSON.parse(readFileSync(join(root, 'state', 'prefs.json'), 'utf8'))).toEqual({ theme: 'dark' });
+    a.send({ t: 'prefs', prefs: { theme: 'light' } });
+    expect(await b.take('prefs')).toEqual({ t: 'prefs', prefs: { theme: 'light' } });
+
+    await d.close();
+    const again = await start();
+    expect(await (await viewer(again, 'c3')).take('prefs')).toEqual({ t: 'prefs', prefs: { theme: 'light' } });
+  });
+
+  it('rejects invalid prefs without changing them, and starts from the defaults when the file is unreadable', async () => {
+    mkdirSync(join(root, 'state'), { recursive: true });
+    writeFileSync(join(root, 'state', 'prefs.json'), '{not json');
+    const d = await start();
+    const a = await viewer(d, 'c1');
+    expect(await a.take('prefs')).toEqual({ t: 'prefs', prefs: { theme: 'system' } });
+    for (const prefs of [{ theme: 'blue' }, { theme: 1 }, {}, null, 'dark']) {
+      a.send({ t: 'prefs', prefs });
+      expect((await a.take('error')).message).toBe('prefs.theme must be one of light, dark, system');
+    }
+    expect(await (await viewer(d, 'c2')).take('prefs')).toEqual({ t: 'prefs', prefs: { theme: 'system' } });
+    writeFileSync(join(root, 'state', 'prefs.json'), JSON.stringify({ theme: 'purple' }));
+    await d.close();
+    expect(await (await viewer(await start(), 'c1')).take('prefs')).toEqual({ t: 'prefs', prefs: { theme: 'system' } });
   });
 });
 

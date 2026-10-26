@@ -26,7 +26,7 @@ export function preferredPort(): number {
   return Number.isInteger(port) && port > 0 && port < 65536 ? port : DEFAULT_PORT;
 }
 
-export type StateFile = 'daemon.json' | 'token' | 'daemon.lock' | 'canvases' | 'daemon.log';
+export type StateFile = 'daemon.json' | 'token' | 'daemon.lock' | 'canvases' | 'daemon.log' | 'prefs.json';
 
 export function statePath(name: StateFile, dir = stateDir()): string {
   return join(dir, name);

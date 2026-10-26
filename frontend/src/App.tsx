@@ -1,6 +1,7 @@
 import { Excalidraw, Footer, MainMenu, WelcomeScreen, useDevice } from '@excalidraw/excalidraw';
 import type { ExcalidrawImperativeAPI, UIOptions } from '@excalidraw/excalidraw/types';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ThemeChoice } from '../../src/shared/protocol';
 import { readConfig, storage, type ThemePreference } from './config';
 import type { LinkStatus } from './connection';
 import { createFollower } from './follow';
@@ -13,8 +14,9 @@ const FOLLOW_KEY = 'whiteboard-mcp:follow';
 const SAVE_SHORTCUT = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘S' : 'Ctrl+S';
 const SAVED_TOAST_MS = 4000;
 const isSaveKey = (e: KeyboardEvent) => (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 's';
+const isThemeKey = (e: KeyboardEvent) => e.altKey && e.shiftKey && !e.metaKey && !e.ctrlKey && e.code === 'KeyD';
 const UI_OPTIONS: Partial<UIOptions> = {
-  canvasActions: { loadScene: false, saveToActiveFile: false, toggleTheme: false, saveAsImage: true },
+  canvasActions: { loadScene: false, saveToActiveFile: false, toggleTheme: true, saveAsImage: true },
 };
 
 function useTheme(pref: ThemePreference): 'light' | 'dark' {
@@ -33,7 +35,10 @@ function useTheme(pref: ThemePreference): 'light' | 'dark' {
 
 export function App() {
   const config = useMemo(() => readConfig(), []);
-  const theme = useTheme(config.theme);
+  const editorTheme = useTheme(config.theme);
+  // The user's pick, kept by the daemon for every viewer; 'system' follows the editor's or system's theme.
+  const [themeChoice, setThemeChoice] = useState<ThemeChoice>('system');
+  const theme = themeChoice === 'system' ? editorTheme : themeChoice;
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const [status, setStatus] = useState<LinkStatus>('connecting');
   const [viewers, setViewers] = useState(0);
@@ -60,6 +65,7 @@ export function App() {
       viewers: setViewers,
       agentDrew: follower.push,
       title: (t) => setTitle(t === config.canvasId ? '' : t),
+      prefs: (p) => setThemeChoice(p.theme),
       dark: () => themeRef.current === 'dark',
     });
     live.current = session;
@@ -95,6 +101,23 @@ export function App() {
       throw err;
     }
   };
+
+  const pickTheme = useCallback((choice: ThemeChoice) => {
+    setThemeChoice(choice);
+    live.current?.setPrefs({ theme: choice });
+  }, []);
+
+  // Excalidraw's own theme shortcut would flip only its local state; here it's a pick like the menu's.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!isThemeKey(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      pickTheme(themeRef.current === 'dark' ? 'light' : 'dark');
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [pickTheme]);
 
   const toggleFollow = () => {
     setFollow((on) => {
@@ -132,6 +155,7 @@ export function App() {
           <MainMenu.DefaultItems.Help />
           <MainMenu.DefaultItems.ClearCanvas />
           <MainMenu.Separator />
+          <MainMenu.DefaultItems.ToggleTheme allowSystemTheme theme={themeChoice} onSelect={pickTheme} />
           <MainMenu.DefaultItems.ChangeCanvasBackground />
         </MainMenu>
         <WelcomeScreen>
