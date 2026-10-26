@@ -139,7 +139,7 @@ class WhiteboardHost {
   }
 
   viewerUrl(canvasId) {
-    return `${this.daemon.base}/c/${encodeURIComponent(canvasId)}?token=${encodeURIComponent(this.daemon.token)}`;
+    return `${this.daemon.base}/c/${encodeURIComponent(canvasId)}/${encodeURIComponent(this.daemon.token)}/`;
   }
 
   /** Boards of this window's folders, newest first; empty while the daemon isn't running. */

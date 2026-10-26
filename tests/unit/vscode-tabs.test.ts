@@ -64,7 +64,7 @@ function fakeVscode({ theme = 2 } = {}) {
   return { vscode, created };
 }
 
-const board = (id: string, port = 47428) => `http://127.0.0.1:${port}/c/${id}?token=tok`;
+const board = (id: string, port = 47428) => `http://127.0.0.1:${port}/c/${id}/tok/`;
 const iframeSrc = (panel: FakePanel) => /<iframe src="([^"]+)"/.exec(panel.webview.html)![1]!.replace(/&quot;/g, '"').replace(/&amp;/g, '&');
 
 describe('BoardTabs', () => {
@@ -79,8 +79,8 @@ describe('BoardTabs', () => {
     expect(created[0]!.showOptions).toEqual({ viewColumn: BESIDE, preserveFocus: true });
     // Later boards join the first board's group as tabs instead of splitting the editor again.
     expect(created[1]!.showOptions).toEqual({ viewColumn: created[0]!.viewColumn, preserveFocus: true });
-    expect(iframeSrc(created[0]!)).toBe('http://127.0.0.1:47428/c/app-111111?token=tok&embed=1&theme=dark');
-    expect(iframeSrc(created[1]!)).toBe('http://127.0.0.1:47428/c/app-222222?token=tok&embed=1&theme=dark');
+    expect(iframeSrc(created[0]!)).toBe('http://127.0.0.1:47428/c/app-111111/tok/?embed=1&theme=dark');
+    expect(iframeSrc(created[1]!)).toBe('http://127.0.0.1:47428/c/app-222222/tok/?embed=1&theme=dark');
     expect(created[1]!.options).toEqual({ enableScripts: true, retainContextWhenHidden: true });
     expect(created[0]!.iconPath!.id).toBe('edit');
     expect(created[0]!.webview.html).toMatch(/Content-Security-Policy" content="default-src 'none'; frame-src http:\/\/127\.0\.0\.1:\* http:\/\/localhost:\*;/);
@@ -98,10 +98,10 @@ describe('BoardTabs', () => {
     expect(created[1]!.reveals).toEqual([]);
     expect(created[0]!.title).toBe('How MCP works (renamed)');
     expect(created[0]!.webview.html).toBe(html);
-    expect(iframeSrc(created[1]!)).toBe('http://127.0.0.1:47428/c/app-222222?token=tok&embed=1&theme=dark');
+    expect(iframeSrc(created[1]!)).toBe('http://127.0.0.1:47428/c/app-222222/tok/?embed=1&theme=dark');
     // The daemon restarted on another port: the same board's tab follows it.
     tabs.show('app-111111', board('app-111111', 50000), 'How MCP works');
-    expect(iframeSrc(created[0]!)).toBe('http://127.0.0.1:50000/c/app-111111?token=tok&embed=1&theme=dark');
+    expect(iframeSrc(created[0]!)).toBe('http://127.0.0.1:50000/c/app-111111/tok/?embed=1&theme=dark');
     expect(created).toHaveLength(2);
   });
 
@@ -129,7 +129,7 @@ describe('BoardTabs', () => {
     expect(created.map((p) => p.title)).toEqual(['Whiteboard', 'Whiteboard']);
     expect(iframeSrc(created[0]!)).toMatch(/theme=light$/);
     expect(created[1]!.webview.html).not.toContain('"><script>');
-    expect(created[0]!.webview.html).toContain('?token=tok&amp;embed=1&amp;theme=light"');
+    expect(created[0]!.webview.html).toContain('/tok/?embed=1&amp;theme=light"');
     expect(() => tabs.show('x', 'https://evil.example/c/x', 'X')).toThrow(/Only local/);
     expect(() => tabs.show('y', 'http://192.168.1.2:1/c/y', 'Y')).toThrow(/Only local/);
     expect(() => tabs.show('z', 'https://127.0.0.1:1/c/z', 'Z')).toThrow(/Only local/);
