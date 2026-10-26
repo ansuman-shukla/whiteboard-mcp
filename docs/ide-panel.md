@@ -20,7 +20,7 @@ It works for:
 
 Requires VS Code 1.101 or later (its extension host is Node 22 with a built-in WebSocket), or an editor built on that base, such as Cursor 2.1+. Older editors show a warning and the extension stays idle.
 
-The extension isn't on the Marketplace or Open VSX yet, but the npm package ships it (`dist/vscode/whiteboard-mcp-<version>.vsix`). Install it with `code --install-extension <that file>` (or `cursor`, `windsurf`, … for those editors); the window picks it up without a restart. Without the extension, an agent in the editor opens the board link in its in-app browser or preview tool instead.
+The extension isn't on the Marketplace or Open VSX yet, but the npm package ships it (`dist/vscode/whiteboard-mcp-<version>.vsix`), and each [GitHub release](https://github.com/ansuman-shukla/whiteboard-mcp/releases) has it attached. Install it with `code --install-extension <that file>` (or `cursor`, `windsurf`, … for those editors); the window picks it up without a restart. Without the extension, an agent in the editor opens the board link in its in-app browser or preview tool instead.
 
 To install it yourself, build the `.vsix` from a clone:
 
