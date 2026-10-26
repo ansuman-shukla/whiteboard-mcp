@@ -38,7 +38,7 @@ test('empty canvas shows the welcome hint; auto theme follows the system live', 
 
 test('theme query parameter wins over the system preference', async ({ page, canvasId }) => {
   await page.emulateMedia({ colorScheme: 'light' });
-  await openViewer(page, canvasId, '&theme=dark');
+  await openViewer(page, canvasId, '?theme=dark');
   await expect(page.locator('.excalidraw.theme--dark')).toHaveCount(1);
 });
 

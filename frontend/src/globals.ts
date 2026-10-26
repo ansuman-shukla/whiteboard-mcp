@@ -7,5 +7,5 @@ declare global {
   }
 }
 
-// Fonts are served by the daemon at /fonts/*; must be set before Excalidraw loads any.
-window.EXCALIDRAW_ASSET_PATH = '/';
+// Fonts are served by the daemon next to the page (fonts/*, also behind a proxy prefix); must be set before Excalidraw loads any.
+window.EXCALIDRAW_ASSET_PATH = new URL('.', window.location.href).href;

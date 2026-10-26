@@ -582,7 +582,7 @@ describe('showing boards', () => {
     const read = () => (existsSync(opened) ? readFileSync(opened, 'utf8').trim().split('\n') : []);
     for (let i = 0; i < 50 && read().length < 2; i++) await new Promise((r) => setTimeout(r, 100));
     const urls = read();
-    expect(urls.map((u) => /\/c\/([a-z0-9-]+)\?token=/.exec(u)?.[1]).sort()).toEqual([...boards].sort());
+    expect(urls.map((u) => /\/c\/([a-z0-9-]+)\/[0-9a-f]{64}\/$/.exec(u)?.[1]).sort()).toEqual([...boards].sort());
   });
 
   it.skipIf(process.platform === 'win32')('when the browser opener fails (e.g. inside a sandbox) it says so and hands over the link instead of claiming it opened', async () => {
@@ -592,11 +592,11 @@ describe('showing boards', () => {
     const session = await connect({ env: { PATH: `${bin}${delimiter}${env.PATH}`, WHITEBOARD_OPEN: '' }, unset: ['VSCODE_PID', 'VSCODE_IPC_HOOK_CLI', 'CURSOR_TRACE_ID', 'TERM_PROGRAM'] });
     const drawn = await call(session, 'canvas_draw', { elements: [{ id: 'x', type: 'rectangle', x: 0, y: 0, label: 'X' }] });
     expect(drawn.text).not.toContain('opened with');
-    expect(drawn.text).toMatch(/could not open .*exited with code 1.*\/c\/[a-z0-9-]+\?token=/s);
+    expect(drawn.text).toMatch(/could not open .*exited with code 1.*\/c\/[a-z0-9-]+\/[0-9a-f]{64}\//s);
     const started = Date.now();
     const shot = await call(session, 'canvas_screenshot');
     expect(shot.result.isError).toBe(true);
-    expect(shot.text).toMatch(/\/c\/[a-z0-9-]+\?token=/);
+    expect(shot.text).toMatch(/\/c\/[a-z0-9-]+\/[0-9a-f]{64}\//);
     expect(Date.now() - started).toBeLessThan(5000);
   });
 
@@ -605,7 +605,7 @@ describe('showing boards', () => {
     const { text } = await call(client, 'canvas_open');
     expect(text).not.toContain('opened with');
     expect(text).not.toMatch(/install/i);
-    expect(text).toMatch(/No whiteboard panel is connected in this editor\. Open the board in your in-app browser or preview tool \(not an external browser\): http:\/\/127\.0\.0\.1:\d+\/c\/[a-z0-9-]+\?token=[0-9a-f]+$/m);
+    expect(text).toMatch(/No whiteboard panel is connected in this editor\. Open the board in your in-app browser or preview tool \(not an external browser\): http:\/\/127\.0\.0\.1:\d+\/c\/[a-z0-9-]+\/[0-9a-f]{64}\/$/m);
   });
 });
 
@@ -624,7 +624,7 @@ describe('chat apps (their own window, not a terminal)', () => {
     for (const name of ['open', 'xdg-open']) writeFileSync(join(bin, name), `#!/bin/sh\nprintf '%s\\n' "$1" >> ${JSON.stringify(opened)}\n`, { mode: 0o755 });
     const client = await connect({ app: true, env: { WHITEBOARD_CHAT_ID: 'app-chat', PATH: `${bin}${delimiter}${env.PATH}`, WHITEBOARD_OPEN: '' }, unset: ['VSCODE_PID', 'VSCODE_IPC_HOOK_CLI', 'CURSOR_TRACE_ID', 'TERM_PROGRAM'] });
     const { text } = await call(client, 'canvas_open', { title: 'In an app' });
-    expect(text).toMatch(/Open the board in your in-app browser or preview tool \(not an external browser\): http:\/\/127\.0\.0\.1:\d+\/c\/[a-z0-9-]+\?token=[0-9a-f]+$/m);
+    expect(text).toMatch(/Open the board in your in-app browser or preview tool \(not an external browser\): http:\/\/127\.0\.0\.1:\d+\/c\/[a-z0-9-]+\/[0-9a-f]{64}\/$/m);
     expect(text).not.toContain('No whiteboard panel');
     await new Promise((r) => setTimeout(r, 300));
     expect(existsSync(opened)).toBe(false);
@@ -646,7 +646,7 @@ describe('chat apps (their own window, not a terminal)', () => {
     try {
       const opened = await call(client, 'canvas_open', { title: 'Panel first' });
       expect(opened.text).toContain('Shown to the human beside the chat.');
-      expect(opened.text).not.toMatch(/token=/);
+      expect(opened.text).not.toMatch(/\/c\//);
       expect(shows).toEqual([boardId(opened.text)]);
     } finally {
       ws.close();

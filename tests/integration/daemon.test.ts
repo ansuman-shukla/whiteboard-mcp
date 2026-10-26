@@ -119,7 +119,7 @@ beforeEach(() => {
   frontendDir = join(root, 'frontend');
   mkdirSync(join(frontendDir, 'assets'), { recursive: true });
   mkdirSync(join(frontendDir, 'fonts'), { recursive: true });
-  writeFileSync(join(frontendDir, 'index.html'), '<!doctype html><div id="root"></div>');
+  writeFileSync(join(frontendDir, 'index.html'), '<!doctype html><html><head><title>W</title></head><body><div id="root"></div></body></html>');
   writeFileSync(join(frontendDir, 'assets', 'app.js'), 'console.log(1)');
   writeFileSync(join(frontendDir, 'fonts', 'f.woff2'), 'woff');
   writeFileSync(join(root, 'secret.txt'), 'top secret');
@@ -157,12 +157,23 @@ describe('http security', () => {
   it('checks token, Host and Origin on WebSocket upgrades', async () => {
     const d = await start();
     expect(await wsStatus(d, `canvas=c1&token=${d.token}`, { origin: 'http://evil.example' })).toMatch(/403/);
-    expect(await wsStatus(d, `canvas=c1&token=${d.token}`, { origin: `http://127.0.0.1:${d.port + 1}` })).toMatch(/403/);
     expect(await wsStatus(d, `canvas=c1&token=${d.token}`, { headers: { Host: `evil.example:${d.port}` } })).toMatch(/403/);
     expect(await wsStatus(d, 'canvas=c1&token=wrong')).toMatch(/401/);
     expect(await wsStatus(d, `canvas=Bad..Id&token=${d.token}`)).toMatch(/400/);
     expect(await wsStatus(d, `canvas=c1&token=${d.token}`, { origin: `http://localhost:${d.port}` })).toBe('open');
     expect(await wsStatus(d, `canvas=c1&token=${d.token}`)).toBe('open');
+  });
+
+  it('accepts viewers behind a loopback proxy on another port, still rejecting lookalike origins', async () => {
+    const d = await start();
+    const query = `canvas=c1&token=${d.token}`;
+    for (const origin of [`http://127.0.0.1:${d.port + 1}`, `http://localhost:${d.port + 1}`, 'http://localhost']) {
+      expect(await wsStatus(d, query, { origin })).toBe('open');
+    }
+    for (const origin of [`http://127.0.0.1.evil.example:${d.port}`, `http://localhost.evil.example`, `https://evil.example/http://127.0.0.1:${d.port}`, `http://user@127.0.0.1:${d.port}`, `http://127.0.0.1:${d.port}/x`, `https://127.0.0.1:${d.port}`, `ws://127.0.0.1:${d.port}`, 'null', 'http://127.0.0.2']) {
+      expect(await wsStatus(d, query, { origin })).toMatch(/403/);
+    }
+    expect(await wsStatus(d, 'canvas=c1&token=wrong', { origin: `http://127.0.0.1:${d.port + 1}` })).toMatch(/401/);
   });
 });
 
@@ -336,7 +347,7 @@ describe('saved boards', () => {
 describe('static frontend', () => {
   it('serves the viewer shell and assets with the right headers', async () => {
     const d = await start();
-    const page = await fetch(`${d.url}/c/anything`);
+    const page = await fetch(`${d.url}/c/anything/${d.token}/`);
     expect(page.status).toBe(200);
     expect(page.headers.get('content-type')).toMatch(/^text\/html/);
     expect(page.headers.get('cache-control')).toBe('no-store');
@@ -356,9 +367,65 @@ describe('static frontend', () => {
     expect((await fetch(`${d.url}/assets/app.js`, { method: 'POST' })).status).toBe(405);
   });
 
+  it('serves the viewer, its assets and its socket under a self-contained /c/<id>/<token>/ path', async () => {
+    const d = await start();
+    const base = `${d.url}/c/c1/${d.token}/`;
+    const page = await fetch(base);
+    expect(page.status).toBe(200);
+    expect(page.headers.get('cache-control')).toBe('no-store');
+    expect(page.headers.get('referrer-policy')).toBe('no-referrer');
+    expect(await page.text()).toBe('<!doctype html><html><head><meta name="whiteboard-canvas" content="c1"><title>W</title></head><body><div id="root"></div></body></html>');
+    expect(Number(page.headers.get('content-length'))).toBe(Buffer.byteLength('<!doctype html><html><head><meta name="whiteboard-canvas" content="c1"><title>W</title></head><body><div id="root"></div></body></html>'));
+    expect((await fetch(`${base}?embed=1&theme=dark`)).status).toBe(200);
+    const js = await fetch(`${base}assets/app.js`);
+    expect([js.status, js.headers.get('cache-control'), await js.text()]).toEqual([200, 'public, max-age=31536000, immutable', 'console.log(1)']);
+    expect((await fetch(`${base}fonts/f.woff2`)).headers.get('content-type')).toBe('font/woff2');
+    expect((await fetch(`${base}assets/missing.js`)).status).toBe(404);
+    expect((await fetch(`${d.url}/c/Bad..Id/${d.token}/`)).status).toBe(404);
+    const v = await new Promise<string>((resolve) => {
+      const ws = new WebSocket(`ws://127.0.0.1:${d.port}/c/c1/${d.token}/ws`, { origin: `http://127.0.0.1:${d.port + 1}` });
+      sockets.push(ws);
+      ws.once('message', (data) => resolve((JSON.parse(String(data)) as ServerMessage).t));
+      ws.once('error', (err) => resolve(err.message));
+    });
+    expect(v).toBe('snapshot');
+    expect(d.stats().viewers).toBe(1);
+  });
+
+  it('checks the token, canvas id and Origin of viewer-path sockets', async () => {
+    const d = await start();
+    const status = (path: string, opts: WebSocket.ClientOptions = {}) =>
+      new Promise<string>((resolve) => {
+        const ws = new WebSocket(`ws://127.0.0.1:${d.port}${path}`, opts);
+        sockets.push(ws);
+        ws.once('open', () => resolve('open'));
+        ws.once('error', (err) => resolve(err.message));
+      });
+    expect(await status('/c/c1/wrong/ws')).toMatch(/401/);
+    expect(await status(`/c/c1/${d.token}x/ws`)).toMatch(/401/);
+    expect(await status(`/c/Bad..Id/${d.token}/ws`)).toMatch(/400/);
+    expect(await status(`/c/c1/${d.token}/other`)).toMatch(/404/);
+    expect(await status(`/c/c1/${d.token}/ws`, { origin: 'http://evil.example' })).toMatch(/403/);
+    expect(await status(`/c/c1/${d.token}/ws`, { headers: { Host: `evil.example:${d.port}` } })).toMatch(/403/);
+    expect(await status(`/c/c1/${d.token}/ws`)).toBe('open');
+  });
+
+  it('redirects old /c/<id>?token= links to the self-contained path, keeping the other parameters', async () => {
+    const d = await start();
+    const old = await fetch(`${d.url}/c/c1?token=${d.token}&embed=1&theme=dark`, { redirect: 'manual' });
+    expect(old.status).toBe(302);
+    expect(old.headers.get('location')).toBe(`c1/${d.token}/?embed=1&theme=dark`);
+    const slash = await fetch(`${d.url}/c/c1/?token=${d.token}`, { redirect: 'manual' });
+    expect([slash.status, slash.headers.get('location')]).toEqual([302, `${d.token}/`]);
+    const followed = await fetch(`${d.url}/c/c1?token=${d.token}`);
+    expect([followed.status, followed.url]).toEqual([200, `${d.url}/c/c1/${d.token}/`]);
+    const bare = await fetch(`${d.url}/c/c1`);
+    expect([bare.status, await bare.text()]).toEqual([401, 'This board link has no token. Open the board from your agent.']);
+  });
+
   it('blocks path traversal', async () => {
     const d = await start();
-    for (const path of ['/../secret.txt', '/assets/..%2f..%2fsecret.txt', '/%2e%2e/secret.txt', '/assets/%2e%2e%2f%2e%2e%2fsecret.txt', '/..%5csecret.txt', '/assets/%00.js']) {
+    for (const path of ['/../secret.txt', '/assets/..%2f..%2fsecret.txt', '/%2e%2e/secret.txt', '/assets/%2e%2e%2f%2e%2e%2fsecret.txt', '/..%5csecret.txt', '/assets/%00.js', `/c/c1/tok/..%2f..%2f..%2fsecret.txt`, `/c/c1/tok/assets/..%2f..%2f..%2fsecret.txt`, '/c/c1/tok/%2e%2e/%2e%2e/secret.txt']) {
       const res = await raw(d, path, { Host: `127.0.0.1:${d.port}` });
       expect(res.status, path).not.toBe(200);
       expect(res.body).not.toContain('top secret');
@@ -367,7 +434,7 @@ describe('static frontend', () => {
 
   it('answers 503 when the frontend is not built', async () => {
     const d = await start({ frontendDir: join(root, 'nowhere') });
-    const res = await fetch(`${d.url}/c/x`);
+    const res = await fetch(`${d.url}/c/x/${d.token}/`);
     expect(res.status).toBe(503);
     expect(await res.text()).toBe('frontend not built');
   });

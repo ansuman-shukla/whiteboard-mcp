@@ -98,7 +98,7 @@ test('two viewers stay in sync both ways', async ({ page, context, rest, canvasI
 test('a dropped socket reconnects and resyncs edits made on both sides meanwhile', async ({ page, rest, canvasId }) => {
   let blocked = false;
   const live: { client: WebSocketRoute; server: WebSocketRoute }[] = [];
-  await page.routeWebSocket(/\/ws\?/, (client) => {
+  await page.routeWebSocket(/\/ws$/, (client) => {
     if (blocked) return void client.close();
     live.push({ client, server: client.connectToServer() });
   });

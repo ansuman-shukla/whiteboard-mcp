@@ -11,6 +11,7 @@ import { APP_NAME, VERSION, preferredPort, stateDir, statePath, type DaemonInfo 
 import {
   API,
   CANVAS_ID_PATTERN,
+  parseViewerPath,
   type Actor,
   type ApplyResponse,
   type BinaryFile,
@@ -101,6 +102,19 @@ const MAX_HOST_ID = 256;
 function contains(folder: string, target: string): boolean {
   const rel = relative(folder, target);
   return rel === '' || (!!rel && !rel.startsWith('..') && !isAbsolute(rel));
+}
+
+/**
+ * A page served from this machine on any port, so viewers behind a local preview proxy (an editor's
+ * in-app browser) can connect. The token still guards every socket; this only keeps remote sites out.
+ */
+function isLoopbackOrigin(origin: string): boolean {
+  try {
+    const url = new URL(origin);
+    return url.protocol === 'http:' && (url.hostname === '127.0.0.1' || url.hostname === 'localhost') && url.origin === origin;
+  } catch {
+    return false;
+  }
 }
 
 const MAX_BODY_BYTES = 30 * 1024 * 1024;
@@ -204,6 +218,17 @@ async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> 
   return body;
 }
 
+const LEGACY_VIEWER = /^\/c\/([^/]+)(\/?)$/;
+
+/** Older links (`/c/<id>?token=`) move to the self-contained viewer path, relative so a proxy prefix survives. */
+function redirectLegacyViewer(res: ServerResponse, url: URL, [, id, slash]: RegExpExecArray): void {
+  const token = url.searchParams.get('token');
+  if (!token) return sendText(res, 401, 'This board link has no token. Open the board from your agent.');
+  url.searchParams.delete('token');
+  res.writeHead(302, { Location: `${slash ? '' : `${id}/`}${encodeURIComponent(token)}/${url.search}`, 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' });
+  res.end();
+}
+
 function rejectUpgrade(socket: Duplex, status: number): void {
   // Destroying right after end() can drop the unflushed status line; wait for the write to finish.
   socket.once('finish', () => socket.destroy());
@@ -236,16 +261,15 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
   const hostGraceMs = opts.hostGraceMs ?? DEFAULT_HOST_GRACE_MS;
   const timers: NodeJS.Timeout[] = [];
   let allowedHosts = new Set<string>();
-  let allowedOrigins = new Set<string>();
   let lastActivityAt = Date.now();
   let activitySeq = 0;
   let closing: Promise<void> | undefined;
 
   const viewerCount = (canvasId: string) => viewersByCanvas.get(canvasId)?.size ?? 0;
+  const tokenMatches = (given: string | null | undefined): boolean => typeof given === 'string' && timingSafeEqual(digest(given), tokenDigest);
   const authorized = (req: IncomingMessage, url: URL): boolean => {
     const header = req.headers.authorization;
-    const given = header?.startsWith('Bearer ') ? header.slice(7) : url.searchParams.get('token');
-    return typeof given === 'string' && timingSafeEqual(digest(given), tokenDigest);
+    return tokenMatches(header?.startsWith('Bearer ') ? header.slice(7) : url.searchParams.get('token'));
   };
 
   function send(viewer: Viewer, msg: ServerMessage | string): void {
@@ -509,14 +533,19 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
 
   async function serveStatic(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
     if (req.method !== 'GET' && req.method !== 'HEAD') return sendText(res, 405, 'method not allowed');
-    const isViewer = /^\/c\/[^/]+\/?$/.test(url.pathname);
+    const legacy = LEGACY_VIEWER.exec(url.pathname);
+    if (legacy) return redirectLegacyViewer(res, url, legacy);
+    const viewer = parseViewerPath(url.pathname);
+    if (viewer && !CANVAS_ID_PATTERN.test(viewer.canvasId)) return sendText(res, 404, 'not found');
+    const path = viewer ? `/${viewer.rest}` : url.pathname;
+    const isViewer = viewer?.rest === '';
     let file: string;
     if (isViewer) {
       file = join(frontendDir, 'index.html');
     } else {
       let rel: string;
       try {
-        rel = decodeURIComponent(url.pathname);
+        rel = decodeURIComponent(path);
       } catch {
         return sendText(res, 400, 'bad path');
       }
@@ -530,12 +559,14 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
     } catch {
       return isViewer ? sendText(res, 503, 'frontend not built') : sendText(res, 404, 'not found');
     }
-    const data = await readFile(real);
+    const content = await readFile(real);
+    // The page can't always read its board from its own URL (a proxy may mount it at '/'), so it's told here.
+    const data = viewer && isViewer ? Buffer.from(content.toString('utf8').replace('<head>', `<head><meta name="whiteboard-canvas" content="${viewer.canvasId}">`)) : content;
     if (res.destroyed) return;
     res.writeHead(200, {
       'Content-Type': MIME[extname(real).toLowerCase()] ?? 'application/octet-stream',
       'Content-Length': data.length,
-      'Cache-Control': url.pathname.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'no-store',
+      'Cache-Control': path.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'no-store',
       'X-Content-Type-Options': 'nosniff',
       // The viewer URL carries the token in its query string.
       'Referrer-Policy': 'no-referrer',
@@ -697,12 +728,14 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
     lastActivityAt = Date.now();
     const url = new URL(req.url ?? '/', 'http://localhost');
     if (closing) return rejectUpgrade(socket, 503);
-    if (url.pathname !== '/ws' && url.pathname !== API.hostWs) return rejectUpgrade(socket, 404);
+    const viewerPath = parseViewerPath(url.pathname);
+    const viewerWs = viewerPath?.rest === 'ws' ? viewerPath : undefined;
+    if (url.pathname !== '/ws' && url.pathname !== API.hostWs && !viewerWs) return rejectUpgrade(socket, 404);
     if (!allowedHosts.has(req.headers.host ?? '')) return rejectUpgrade(socket, 403);
-    if (req.headers.origin !== undefined && !allowedOrigins.has(req.headers.origin)) return rejectUpgrade(socket, 403);
-    if (!authorized(req, url)) return rejectUpgrade(socket, 401);
+    if (req.headers.origin !== undefined && !isLoopbackOrigin(req.headers.origin)) return rejectUpgrade(socket, 403);
+    if (!(viewerWs ? tokenMatches(viewerWs.token) : authorized(req, url))) return rejectUpgrade(socket, 401);
     if (url.pathname === API.hostWs) return wss.handleUpgrade(req, socket, head, onHost);
-    const canvasId = url.searchParams.get('canvas') ?? '';
+    const canvasId = viewerWs?.canvasId ?? url.searchParams.get('canvas') ?? '';
     if (!CANVAS_ID_PATTERN.test(canvasId)) return rejectUpgrade(socket, 400);
     wss.handleUpgrade(req, socket, head, (ws) => onConnection(ws, canvasId));
   });
@@ -720,7 +753,6 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
   server.on('error', (err) => log(`server error: ${err.message}`));
   const port = (server.address() as AddressInfo).port;
   allowedHosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`]);
-  allowedOrigins = new Set([`http://127.0.0.1:${port}`, `http://localhost:${port}`]);
 
   const every = (ms: number, fn: () => void) => {
     const t = setInterval(fn, ms);

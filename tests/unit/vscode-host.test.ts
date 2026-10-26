@@ -109,7 +109,7 @@ describe('WhiteboardHost', () => {
     socket.open();
     socket.message({ t: 'show', reqId: 'r1', canvasId: 'app-1a2b3c', title: 'How MCP works' });
     await sleep(5);
-    expect(shown).toEqual([{ canvasId: 'app-1a2b3c', url: 'http://127.0.0.1:47428/c/app-1a2b3c?token=tok%2F%2B', title: 'How MCP works' }]);
+    expect(shown).toEqual([{ canvasId: 'app-1a2b3c', url: 'http://127.0.0.1:47428/c/app-1a2b3c/tok%2F%2B/', title: 'How MCP works' }]);
     expect(socket.sent[1]).toEqual({ t: 'shown', reqId: 'r1', ok: true });
 
     socket.message({ t: 'show', reqId: 'r2', canvasId: 'x', title: 'boom' });
@@ -146,7 +146,7 @@ describe('WhiteboardHost', () => {
     expect(second.url).toBe('ws://127.0.0.1:6000/ws/host?token=t2');
     second.open();
     expect(second.sent[0]).toMatchObject({ t: 'hello', hostId: '45824' });
-    expect(host.viewerUrl('b')).toBe('http://127.0.0.1:6000/c/b?token=t2');
+    expect(host.viewerUrl('b')).toBe('http://127.0.0.1:6000/c/b/t2/');
 
     host.dispose();
     second.close();
