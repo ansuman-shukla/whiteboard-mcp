@@ -1,25 +1,28 @@
-import { API } from '../../src/shared/protocol';
+import { parseViewerPath } from '../../src/shared/protocol';
 
 export type ThemePreference = 'light' | 'dark' | 'auto';
 
 export interface ViewerConfig {
   canvasId: string;
-  token: string;
   theme: ThemePreference;
   embed: boolean;
   wsUrl: string;
 }
 
-export function readConfig(loc: Location = window.location): ViewerConfig {
-  const match = /^\/c\/([^/]+)\/?$/.exec(loc.pathname);
-  const canvasId = match ? decodeURIComponent(match[1]!) : '';
+/**
+ * The page is served at `/c/<id>/<token>/`, but a proxy may mount it at its own root, so the board comes
+ * from the daemon's meta tag (the URL only in the dev server) and the socket from a URL relative to the page.
+ */
+export function readConfig(loc: Location = window.location, doc: Document = document): ViewerConfig {
+  const canvasId = doc.querySelector<HTMLMetaElement>('meta[name="whiteboard-canvas"]')?.content || parseViewerPath(loc.pathname)?.canvasId || '';
   const params = new URLSearchParams(loc.search);
-  const token = params.get('token') ?? '';
   const themeParam = params.get('theme');
   const theme: ThemePreference = themeParam === 'light' || themeParam === 'dark' ? themeParam : 'auto';
-  const wsProto = loc.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${wsProto}//${loc.host}${API.ws}?canvas=${encodeURIComponent(canvasId)}&token=${encodeURIComponent(token)}`;
-  return { canvasId, token, theme, embed: params.get('embed') === '1', wsUrl };
+  const ws = new URL('ws', loc.href);
+  ws.protocol = loc.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws.search = '';
+  ws.hash = '';
+  return { canvasId, theme, embed: params.get('embed') === '1', wsUrl: ws.href };
 }
 
 /** localStorage can throw (sandboxed iframes, disabled storage, WKWebView quirks). */

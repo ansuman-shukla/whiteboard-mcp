@@ -208,9 +208,24 @@ export const API = {
   /** Live boards of every folder matching every word of `q` (all non-empty when empty), boards of `workspace` first. */
   search: (q = '', workspace = '', limit?: number) => `/api/search?${new URLSearchParams({ q, workspace, ...(limit ? { limit: String(limit) } : {}) })}`,
   hostWs: '/ws/host',
-  viewer: (id: string) => `/c/${encodeURIComponent(id)}`,
+  /**
+   * A board's viewer page. Self-contained (no query needed), and the page loads its assets, fonts and
+   * socket (`ws`) relative to it, so it also works behind a proxy that mounts it under another path.
+   */
+  viewer: (id: string, token: string) => `/c/${encodeURIComponent(id)}/${encodeURIComponent(token)}/`,
   ws: '/ws',
 } as const;
+
+/** Splits `/c/<id>/<token>/<rest>` into its parts: `rest` is '' for the page, else a file or `ws`. */
+export function parseViewerPath(pathname: string): { canvasId: string; token: string; rest: string } | undefined {
+  const m = /^\/c\/([^/]+)\/([^/]+)\/(.*)$/.exec(pathname);
+  if (!m) return undefined;
+  try {
+    return { canvasId: decodeURIComponent(m[1]!), token: decodeURIComponent(m[2]!), rest: m[3]! };
+  } catch {
+    return undefined;
+  }
+}
 
 /** Canvas ids are URL- and filename-safe. */
 export const CANVAS_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;

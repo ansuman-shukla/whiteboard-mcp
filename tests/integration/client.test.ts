@@ -276,7 +276,7 @@ describe('api', () => {
     expect(await c.list()).toEqual([{ id: 'demo', title: 'Demo', elementCount: 2, updatedAt: expect.any(Number), viewers: 0, workspace: '/w', chat: 'c1' }]);
     expect(await c.clear('demo')).toEqual({ rev: 3, applied: ['a', 'b'], stale: [] });
     expect(await c.snapshot('demo')).toMatchObject({ id: 'demo', rev: 3, elements: [], notes: [note] });
-    expect(c.viewerUrl('demo')).toBe(`http://127.0.0.1:${port}/c/demo?token=${c.token}`);
+    expect(c.viewerUrl('demo')).toBe(`http://127.0.0.1:${port}/c/demo/${c.token}/`);
     expect(await c.health()).toEqual({ ok: true, version: expect.any(String), pid: expect.any(Number) });
 
     await expect(c.snapshot('missing')).rejects.toMatchObject({ name: 'CanvasError', status: 404, code: 'canvas_not_found' });

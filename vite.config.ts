@@ -12,15 +12,17 @@ const daemonPort = Number(process.env.WHITEBOARD_PORT ?? 47428);
 
 /**
  * Excalidraw loads its fonts at runtime from `${EXCALIDRAW_ASSET_PATH}fonts/...`.
- * Ship them next to the build (served at /fonts/*) so nothing is fetched from a CDN,
+ * Ship them next to the build (served next to the page, fonts/*) so nothing is fetched from a CDN,
  * and serve them from node_modules in dev.
  */
 function excalidrawFonts(): Plugin {
   return {
     name: 'excalidraw-local-fonts',
     configureServer(server) {
-      server.middlewares.use('/fonts', (req, res, next) => {
-        const file = normalize(join(fontsDir, decodeURIComponent((req.url ?? '').split('?')[0] ?? '')));
+      server.middlewares.use((req, res, next) => {
+        const name = /^(?:\/c\/[^/]+\/[^/]+)?\/fonts(\/[^?]*)/.exec(req.url ?? '')?.[1];
+        if (!name) return next();
+        const file = normalize(join(fontsDir, decodeURIComponent(name)));
         if (!file.startsWith(fontsDir + sep) || !existsSync(file)) return next();
         res.setHeader('Content-Type', 'font/woff2');
         createReadStream(file).pipe(res);
@@ -34,7 +36,8 @@ function excalidrawFonts(): Plugin {
 
 export default defineConfig({
   root: 'frontend',
-  base: '/',
+  // Relative, so the viewer works under /c/<id>/<token>/ and behind a proxy that mounts it elsewhere.
+  base: './',
   publicDir: false,
   plugins: [react(), excalidrawFonts()],
   build: {
@@ -45,15 +48,9 @@ export default defineConfig({
     reportCompressedSize: true,
   },
   server: {
-    // Dev: run a daemon (`whiteboard-mcp serve`) and open http://localhost:5173/c/<id>?token=<t>.
+    // Dev: run a daemon (`whiteboard-mcp serve`) and open http://localhost:5173/c/<id>/<token>/.
     proxy: {
-      '/ws': {
-        target: `ws://127.0.0.1:${daemonPort}`,
-        ws: true,
-        changeOrigin: true,
-        // The daemon only accepts its own origin.
-        configure: (proxy) => proxy.on('proxyReqWs', (req) => req.setHeader('Origin', `http://127.0.0.1:${daemonPort}`)),
-      },
+      '^/c/[^/]+/[^/]+/ws$': { target: `ws://127.0.0.1:${daemonPort}`, ws: true, changeOrigin: true },
       '/api': { target: `http://127.0.0.1:${daemonPort}`, changeOrigin: true },
     },
   },

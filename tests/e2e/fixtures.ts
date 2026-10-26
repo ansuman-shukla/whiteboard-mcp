@@ -90,7 +90,7 @@ export async function shared() {
 }
 
 export async function openViewer(page: Page, canvasId: string, query = ''): Promise<void> {
-  await page.goto(`/c/${canvasId}?token=${TOKEN}${query}`);
+  await page.goto(`/c/${canvasId}/${TOKEN}/${query}`);
   await page.waitForFunction(() => !!window.__excalidrawAPI);
   await expect(page.locator('.xl-status')).toHaveText('live');
 }

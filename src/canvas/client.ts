@@ -232,7 +232,7 @@ export class CanvasClient {
   }
 
   viewerUrl(id: string): string {
-    return `${this.baseUrl}${API.viewer(id)}?token=${this.token}`;
+    return `${this.baseUrl}${API.viewer(id, this.token)}`;
   }
 
   private async call<T>(method: string, path: string, body?: unknown, timeoutMs = HTTP_TIMEOUT_MS, retry = true): Promise<T> {
