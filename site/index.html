@@ -48,7 +48,7 @@
     { "@type": "Question", "name": "Is there an Excalidraw MCP server that runs locally and works offline?", "acceptedAnswer": { "@type": "Answer", "text": "Yes, Whiteboard MCP. It runs a small daemon on 127.0.0.1 and serves the Excalidraw viewer with its fonts bundled. After the first npx download it needs no internet, no account and no API key. Boards are plain JSON files in ~/.whiteboard-mcp." } },
     { "@type": "Question", "name": "How do I let Claude Code, Codex or Cursor draw diagrams?", "acceptedAnswer": { "@type": "Answer", "text": "Add the MCP server with one line, for example: claude mcp add whiteboard --scope user -- npx -y @ansuman-shukla/whiteboard-mcp. Start a new chat and ask the agent to draw something on the whiteboard. It draws step by step on a live Excalidraw board beside the chat." } },
     { "@type": "Question", "name": "Can the agent see what I draw on the whiteboard?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Every time it looks, it gets a short list of what you added, moved or deleted, plus any notes you left. It can also take a PNG screenshot of the board to check its own layout." } },
-    { "@type": "Question", "name": "Which agents and editors does it work with?", "acceptedAnswer": { "@type": "Answer", "text": "Any MCP client: Claude Code, Claude Desktop, OpenAI Codex, Cursor, Gemini CLI, VS Code (Copilot agent mode), Windsurf, Devin, OpenCode and more. Agents without MCP can use the whiteboard-mcp call CLI. An IDE panel shows boards in a tab beside the chat in VS Code, Cursor, Windsurf and Devin Desktop." } },
+    { "@type": "Question", "name": "Which agents and editors does it work with?", "acceptedAnswer": { "@type": "Answer", "text": "Any MCP client: Claude Code, Claude Desktop, OpenAI Codex, Cursor, Gemini CLI, VS Code (Copilot agent mode), Windsurf, Devin, OpenCode and more. Agents without MCP can use the whiteboard-mcp call CLI." } },
     { "@type": "Question", "name": "Can it turn Mermaid into an Excalidraw diagram, or export it?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. canvas_mermaid converts Mermaid into editable hand-drawn elements, and canvas_export saves the board as .excalidraw or .png in your project." } },
     { "@type": "Question", "name": "Is it free and private?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. It is MIT licensed with no license key or paid tier. Everything stays on your machine: the daemon only listens on 127.0.0.1 and every API call needs a per-user token." } }
   ]
@@ -148,7 +148,7 @@ devin mcp add whiteboard --scope user -- npx -y @ansuman-shukla/whiteboard-mcp
 code --add-mcp '{"name":"whiteboard","command":"npx","args":["-y","@ansuman-shukla/whiteboard-mcp"]}'</code></pre>
   <p><strong>Cursor, Claude Desktop, Windsurf and other JSON configs:</strong></p>
   <pre><code>{ "mcpServers": { "whiteboard": { "command": "npx", "args": ["-y", "@ansuman-shukla/whiteboard-mcp"] } } }</code></pre>
-  <p>More clients, the CLI for agents without MCP and the IDE panel: <a href="https://github.com/ansuman-shukla/whiteboard-mcp/blob/main/docs/clients.md">client setup</a>.</p>
+  <p>More clients and the CLI for agents without MCP: <a href="https://github.com/ansuman-shukla/whiteboard-mcp/blob/main/docs/clients.md">client setup</a>.</p>
 </section>
 
 <section>

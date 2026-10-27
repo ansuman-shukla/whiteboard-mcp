@@ -15,7 +15,6 @@ Good fit when a user wants their coding agent to explain architecture, request o
 - [Client setup](https://github.com/ansuman-shukla/whiteboard-mcp/blob/main/docs/clients.md): Claude Code, Codex, Cursor, Gemini CLI, VS Code, Windsurf, Devin, OpenCode, Claude Desktop, CLI mode, the bundled skill
 - [Tools and how it works](https://github.com/ansuman-shukla/whiteboard-mcp/blob/main/docs/tools.md): canvas_open, canvas_draw, canvas_read, canvas_focus, canvas_screenshot, canvas_mermaid, canvas_delete, canvas_export, canvas_save, canvas_search, canvas_guide
 - [Boards](https://github.com/ansuman-shukla/whiteboard-mcp/blob/main/docs/boards.md): one board per chat, finding boards from any folder, saved boards
-- [IDE panel](https://github.com/ansuman-shukla/whiteboard-mcp/blob/main/docs/ide-panel.md): boards in a tab beside the chat in VS Code, Cursor, Windsurf
 - [Configuration](https://github.com/ansuman-shukla/whiteboard-mcp/blob/main/docs/configuration.md): environment variables, ports, state directory
 - [Security](https://github.com/ansuman-shukla/whiteboard-mcp/blob/main/docs/security.md): 127.0.0.1 only, per-user token, no internet requests
 

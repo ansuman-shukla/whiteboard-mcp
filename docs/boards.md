@@ -68,16 +68,16 @@ Set one of the env vars if your agent restarts its MCP servers within a chat and
 
 ```
 canvas_open / canvas_draw while nobody is watching
-   ├─ an editor panel host is connected (the IDE panel extension, Devin Switch in Devin Desktop) → shown beside the chat
-   ├─ agent runs inside an editor without a panel host → nothing opens; the agent tells you how to open it
+   ├─ a panel host is connected (Devin Switch in Devin Desktop) → shown beside the chat
+   ├─ agent runs inside an editor or a desktop chat app → the agent opens the link in its in-app browser
    └─ elsewhere (terminal agents) → your browser
 ```
 
-In VS Code, Cursor or Windsurf, install the [IDE panel extension](ide-panel.md) to get the panel. Change the browser fallback with [`WHITEBOARD_OPEN`](configuration.md).
+Change the browser fallback with [`WHITEBOARD_OPEN`](configuration.md).
 
 ### Light and dark theme
 
-Boards follow your editor's theme in the panel and your system's elsewhere. To pick one yourself, open the board's menu and choose light, dark or system under Theme (or press Alt+Shift+D). The pick is kept in `~/.whiteboard-mcp/prefs.json` and applies to every board, in every viewer, until you choose System again.
+Boards follow your system's theme. To pick one yourself, open the board's menu and choose light, dark or system under Theme (or press Alt+Shift+D). The pick is kept in `~/.whiteboard-mcp/prefs.json` and applies to every board, in every viewer, until you choose System again.
 
 ### Panel hosts and window routing
 
@@ -86,6 +86,6 @@ Panel hosts connect to the daemon at `/ws/host` (token-protected) and say which 
 1. the host whose `hostId` matches the agent's `WHITEBOARD_HOST_ID` (else Windsurf/Devin Desktop's `WINDSURF_EXT_HOST_PID`), looked up in the agent's ancestors when its own environment lacks it (Codex passes MCP servers only a few variables);
 2. otherwise a window showing the board's workspace, focused first. While the hinted window may still be connecting (a daemon that just started), windows announcing another `hostId` are skipped; a window id no host announces (stale after Reload Window) falls back to the folder.
 
-It never opens in a window of another folder. The [IDE panel extension](ide-panel.md) sets `WHITEBOARD_HOST_ID` for the agents each window starts. Hosts show each board in its own tab and never retarget another board's tab, so chats never replace each other's boards. The agent never gets the board link while a panel can show it. When none can (inside an editor without the extension, or in a desktop chat app), the result gives the link, and the agent is told to open it in its in-app browser or preview tool, never an external browser.
+It never opens in a window of another folder. Hosts show each board in its own tab and never retarget another board's tab, so chats never replace each other's boards. The agent never gets the board link while a panel can show it. When none can (inside an editor or a desktop chat app without one), the result gives the link, and the agent is told to open it in its in-app browser or preview tool, never an external browser.
 
 A daemon that just started gives windows 5 s to connect before answering that no panel is there: shows naming their window, and shows from agents inside an editor that don't know their window.

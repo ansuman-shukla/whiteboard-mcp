@@ -22,7 +22,7 @@ command = "npx"
 args = ["-y", "@ansuman-shukla/whiteboard-mcp"]
 ```
 
-In the Codex app, the agent opens the board in its in-app browser; don't set `WHITEBOARD_OPEN = "browser"` there, it sends boards to your system browser instead. In VS Code (Codex extension or `codex` in the terminal), the [IDE panel extension](ide-panel.md) shows it beside the chat.
+In the Codex app, the agent opens the board in its in-app browser; don't set `WHITEBOARD_OPEN = "browser"` there, it sends boards to your system browser instead. In VS Code (Codex extension or `codex` in the terminal), the agent opens it in the editor's in-app browser.
 
 ## Devin CLI
 
@@ -57,8 +57,6 @@ In desktop chat apps, the agent opens the board in the app's in-app browser or p
 ```json
 { "servers": { "whiteboard": { "type": "stdio", "command": "npx", "args": ["-y", "@ansuman-shukla/whiteboard-mcp"] } } }
 ```
-
-In VS Code, Cursor and Windsurf, install the [IDE panel extension](ide-panel.md) to see boards in a tab beside the chat, for the editor's own agent and for agents in its terminal.
 
 ## Agents without MCP (pi and others)
 
