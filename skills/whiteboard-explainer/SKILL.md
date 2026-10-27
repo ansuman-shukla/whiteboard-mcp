@@ -46,7 +46,8 @@ Board links go in your in-app browser or preview tool (the editor's or app's bui
 
 ## Element cheatsheet
 
-- Shapes: `{"id":"api","type":"rectangle","x":0,"y":0,"label":"API","backgroundColor":"blue"}`. ellipse = start/end/actor, diamond = decision, frame = zone.
+- Shapes: `{"id":"api","type":"rectangle","x":0,"y":0,"label":"API","backgroundColor":"blue"}`. ellipse = start/end/actor, diamond = decision.
+- Sections/zones: never frames (they're hard to move and block zooming and panning while the cursor is over them). Draw a dashed rectangle around the section's boxes: `{"id":"backend","type":"rectangle","x":-40,"y":-60,"width":600,"height":240,"backgroundColor":"transparent","strokeStyle":"dashed","strokeColor":"gray","roughness":0}`, with its name as a separate `text` just inside the top-left corner. Don't attach child elements to it. An arrow that points at the whole section binds to that rectangle (`"to":"backend"`).
 - Arrows bind to shapes: `{"type":"arrow","from":"api","to":"db","label":"SQL"}`; `"strokeStyle":"dashed"` for async.
 - Free text: `{"type":"text","x":0,"y":-60,"text":"Checkout flow","fontSize":32}`.
 - Spacing: shapes ~160x80, 60-100px gaps, left-to-right for flows, top-down for hierarchies. 2-4 colours, each with a meaning.
