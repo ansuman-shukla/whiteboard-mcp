@@ -536,6 +536,8 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
 
   async function serveStatic(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
     if (req.method !== 'GET' && req.method !== 'HEAD') return sendText(res, 405, 'method not allowed');
+    // An in-app preview given only host and port lands here; the page tells the agent looking at it what to open.
+    if (url.pathname === '/') return sendText(res, 404, `This is the Whiteboard MCP server, not a board. Open the full board link the agent's tool gave, path included: http://${req.headers.host}/c/<board>/<token>/`);
     const legacy = LEGACY_VIEWER.exec(url.pathname);
     if (legacy) return redirectLegacyViewer(res, url, legacy);
     const viewer = parseViewerPath(url.pathname);
