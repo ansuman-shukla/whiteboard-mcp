@@ -93,7 +93,7 @@ The bundled [skill](docs/clients.md#the-skill-recommended-for-every-agent) teach
 <br>
 
 <p align="center">
-  <a href="docs/clients.md">Client setup</a> · <a href="docs/boards.md">Boards</a> · <a href="docs/ide-panel.md">IDE panel</a> · <a href="docs/tools.md">Tools &amp; how it works</a> · <a href="docs/configuration.md">Configuration</a> · <a href="docs/security.md">Security</a> · <a href="CONTRIBUTING.md">Contributing</a>
+  <a href="docs/clients.md">Client setup</a> · <a href="docs/boards.md">Boards</a> · <a href="docs/tools.md">Tools &amp; how it works</a> · <a href="docs/configuration.md">Configuration</a> · <a href="docs/security.md">Security</a> · <a href="CONTRIBUTING.md">Contributing</a>
   <br>
   MIT License · built on <a href="https://github.com/excalidraw/excalidraw">Excalidraw</a>
 </p>

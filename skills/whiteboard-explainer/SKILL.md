@@ -37,8 +37,8 @@ When the user asks to change a drawing that's already there ("put a cache betwee
 
 The tools put the board in front of the user themselves; read the `canvas_open` result to know where:
 
-- **"Shown to the human beside the chat."**: an editor tab beside the chat (VS Code, Cursor, Windsurf and other VS Code-based editors, with the Whiteboard MCP extension). Nothing to do.
-- **"Open the board in your in-app browser or preview tool"**: no editor tab can show it here (an editor without the extension, or a desktop chat app). Open the link the result gives in your in-app browser or preview tool right away, so the board shows beside the chat.
+- **"Shown to the human beside the chat."**: a panel beside the chat showed it (Devin Desktop with Devin Switch). Nothing to do.
+- **"Open the board in your in-app browser or preview tool"**: no panel can show it here (an editor or a desktop chat app). Open the link the result gives in your in-app browser or preview tool right away, so the board shows beside the chat.
 - **"opened with open"**: outside an editor (a plain terminal), the board opened in the browser. That's the right place there.
 - **"Nobody is watching the board"**: the user closed it; call `canvas_open` again when you want them to see it.
 

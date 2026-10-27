@@ -11,6 +11,5 @@ npm test              # unit + integration (builds dist/ first)
 npm run build         # viewer (Vite) + server (tsc)
 npm run test:e2e      # Playwright: real daemon + viewer in Chromium
 npm run check         # everything
-npm run build:vscode  # IDE panel extension (.vsix), see docs/ide-panel.md
 npm run readme:art    # re-render the README cards in docs/media/readme/
 ```

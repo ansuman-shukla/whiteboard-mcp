@@ -27,7 +27,7 @@ gemini mcp add --scope user whiteboard npx -y @ansuman-shukla/whiteboard-mcp
 
 ## 2. Verify
 
-After the client reloads its MCP servers, the `whiteboard` server lists tools starting with `canvas_` (`canvas_open`, `canvas_draw`, `canvas_read`, …). Call `canvas_guide` once to learn the drawing format, then `canvas_open` with a topic title. The board opens beside the chat in editors with the IDE panel, otherwise in the user's browser.
+After the client reloads its MCP servers, the `whiteboard` server lists tools starting with `canvas_` (`canvas_open`, `canvas_draw`, `canvas_read`, …). Call `canvas_guide` once to learn the drawing format, then `canvas_open` with a topic title. Inside an editor or a desktop chat app, open the board link the result gives in your in-app browser or preview tool; from a plain terminal it opens in the user's browser.
 
 ## 3. Optional: the skill
 

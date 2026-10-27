@@ -1,6 +1,6 @@
 name: Release
 
-# On a published GitHub release: attach the npm package and the IDE panel extension to it, and publish
+# On a published GitHub release: attach the npm package to it, and publish
 # the same package to GitHub Packages so the repo page lists it. npmjs.com is still published by hand.
 on:
   release:
@@ -36,7 +36,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.release.tag_name }}
-        run: gh release upload "$TAG" "${{ steps.pack.outputs.tgz }}" dist/vscode/*.vsix --clobber
+        run: gh release upload "$TAG" "${{ steps.pack.outputs.tgz }}" --clobber
       - name: Publish to GitHub Packages
         env:
           NODE_AUTH_TOKEN: ${{ github.token }}

@@ -7,7 +7,7 @@ All settings are environment variables on the MCP server (or CLI) process.
 | `WHITEBOARD_OPEN` | `auto` | When no panel host of the chat's window or workspace is connected: `auto` (browser, but nothing inside an editor), `browser`, `none`, or a command template containing `{url}` (run without a shell), e.g. `firefox --new-window {url}` |
 | `WHITEBOARD_CHAT_ID` | | Fixed chat id for this MCP server process |
 | `WHITEBOARD_CHAT_COMMAND` | | Command printing the current chat id (run once, without a shell), for hosts that restart MCP servers within a chat |
-| `WHITEBOARD_HOST_ID` | `WINDSURF_EXT_HOST_PID`, else found in the agent's parent processes | The `hostId` of the editor window (panel host) this agent runs in, so its boards open there. Set but empty: no window, and no lookup |
+| `WHITEBOARD_HOST_ID` | `WINDSURF_EXT_HOST_PID`, else found in the agent's parent processes | The `hostId` of the editor window this agent runs in, for panel hosts (Devin Switch), so its boards open there. Set but empty: no window, and no lookup |
 | `WHITEBOARD_PORT` | `47428` | Daemon port (falls back to a free port if taken by something else) |
 | `WHITEBOARD_HOME` | `~/.whiteboard-mcp` | State: boards, saved boards, viewer settings, token, daemon info, logs |
 | `WHITEBOARD_IDLE_MS` | `1800000` | Daemon exits after this long with no viewers or requests (`0` = never) |
