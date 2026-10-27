@@ -124,7 +124,7 @@ export class ChatContext {
     // In an editor without a panel, or a chat app, the agent shows it in the app's own browser.
     if (!explicit && (this.base.app || (await this.base.editor()).ide)) {
       const where = this.base.app ? '' : 'No whiteboard panel is connected in this editor. ';
-      return { launched: false, note: `${where}Open the board in ${IN_APP_BROWSER}: ${url}` };
+      return { launched: false, note: `${where}Open the board in ${IN_APP_BROWSER} with this full URL, path included, as its target, even if the tool asks for host and port only; without the path the board won't load and the human sees a blank "not found" page: ${url}` };
     }
     const { opened, note } = await openViewer(url);
     return opened ? { launched: true, note: `${note}.` } : { launched: false, note: `${note}, so the human can't see the board yet; ask them to open ${url}.` };
