@@ -7,9 +7,9 @@
 
 https://github.com/user-attachments/assets/197876d8-5620-4c1b-9bc3-332e0e7d5622
 
-<p align="center"><b>Whiteboard MCP</b> is a free and extreamly token efficient <b>whiteboard MCP</b> that runs locally. Your coding agent draws diagrams on a live board beside the chat, and sees what you draw back.</p>
+<p align="center"><b>Whiteboard MCP</b> is a free and extremely token-efficient <b>whiteboard MCP</b> that runs locally. Your coding agent draws diagrams on a live board beside the chat, and sees what you draw back.</p>
 
-<p align="center"> <a href="#add-it-to-your-agent">One command install for every agent ↓</a></sub></p>
+<p align="center"><a href="#add-it-to-your-agent">One command install for every agent ↓</a></p>
 
 <br>
 
