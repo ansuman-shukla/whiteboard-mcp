@@ -2,7 +2,7 @@
   "name": "whiteboard-mcp",
   "displayName": "Whiteboard MCP",
   "description": "Shows the live whiteboards your coding agents draw with Whiteboard MCP beside the chat, in the window the agent runs in.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "ansuman-shukla",
   "license": "MIT",
   "repository": {

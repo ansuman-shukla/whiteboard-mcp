@@ -27,7 +27,7 @@ To install it yourself, build the `.vsix` from a clone:
 ```sh
 npm install && npm run build      # Whiteboard MCP itself
 npm run build:vscode              # writes build/whiteboard-mcp-<version>.vsix
-code --install-extension build/whiteboard-mcp-0.1.0.vsix
+code --install-extension build/whiteboard-mcp-0.1.1.vsix
 ```
 
 Cursor and Windsurf have the same flag (`cursor --install-extension …`, `windsurf --install-extension …`), or use **Extensions › … › Install from VSIX…** in any of them.
