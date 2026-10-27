@@ -116,6 +116,7 @@ describe('MCP server over stdio (SDK client)', () => {
   it('negotiates and lists the eleven tools', async () => {
     expect(client.getServerVersion()?.name).toBe('whiteboard-mcp');
     expect(client.getInstructions()?.length).toBeLessThanOrEqual(700);
+    expect(client.getInstructions()).toContain('open the exact board URL they give you, path included, in your in-app browser or preview tool');
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(
       ['canvas_delete', 'canvas_draw', 'canvas_export', 'canvas_focus', 'canvas_guide', 'canvas_mermaid', 'canvas_open', 'canvas_read', 'canvas_save', 'canvas_screenshot', 'canvas_search'].sort(),
@@ -605,7 +606,7 @@ describe('showing boards', () => {
     const { text } = await call(client, 'canvas_open');
     expect(text).not.toContain('opened with');
     expect(text).not.toMatch(/install/i);
-    expect(text).toMatch(/No whiteboard panel is connected in this editor\. Open the board in your in-app browser or preview tool \(not an external browser\): http:\/\/127\.0\.0\.1:\d+\/c\/[a-z0-9-]+\/[0-9a-f]{64}\/$/m);
+    expect(text).toMatch(/No whiteboard panel is connected in this editor\. Open the board in your in-app browser or preview tool \(not an external browser\) with this full URL, path included, as its target, even if the tool asks for host and port only; without the path the board won't load and the human sees a blank "not found" page: http:\/\/127\.0\.0\.1:\d+\/c\/[a-z0-9-]+\/[0-9a-f]{64}\/$/m);
   });
 });
 
@@ -624,7 +625,7 @@ describe('chat apps (their own window, not a terminal)', () => {
     for (const name of ['open', 'xdg-open']) writeFileSync(join(bin, name), `#!/bin/sh\nprintf '%s\\n' "$1" >> ${JSON.stringify(opened)}\n`, { mode: 0o755 });
     const client = await connect({ app: true, env: { WHITEBOARD_CHAT_ID: 'app-chat', PATH: `${bin}${delimiter}${env.PATH}`, WHITEBOARD_OPEN: '' }, unset: ['VSCODE_PID', 'VSCODE_IPC_HOOK_CLI', 'CURSOR_TRACE_ID', 'TERM_PROGRAM'] });
     const { text } = await call(client, 'canvas_open', { title: 'In an app' });
-    expect(text).toMatch(/Open the board in your in-app browser or preview tool \(not an external browser\): http:\/\/127\.0\.0\.1:\d+\/c\/[a-z0-9-]+\/[0-9a-f]{64}\/$/m);
+    expect(text).toMatch(/Open the board in your in-app browser or preview tool \(not an external browser\) with this full URL, path included, as its target, even if the tool asks for host and port only; without the path the board won't load and the human sees a blank "not found" page: http:\/\/127\.0\.0\.1:\d+\/c\/[a-z0-9-]+\/[0-9a-f]{64}\/$/m);
     expect(text).not.toContain('No whiteboard panel');
     await new Promise((r) => setTimeout(r, 300));
     expect(existsSync(opened)).toBe(false);

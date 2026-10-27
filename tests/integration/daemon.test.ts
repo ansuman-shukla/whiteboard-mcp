@@ -459,6 +459,15 @@ describe('static frontend', () => {
     expect([bare.status, await bare.text()]).toEqual([401, 'This board link has no token. Open the board from your agent.']);
   });
 
+  it('tells whoever opens the bare root (a preview given host and port only) to open the full board link, without leaking the token', async () => {
+    const d = await start();
+    const root = await fetch(`${d.url}/`);
+    const body = await root.text();
+    expect(root.status).toBe(404);
+    expect(body).toBe(`This is the Whiteboard MCP server, not a board. Open the full board link the agent's tool gave, path included: http://127.0.0.1:${d.port}/c/<board>/<token>/`);
+    expect(body).not.toContain(d.token);
+  });
+
   it('blocks path traversal', async () => {
     const d = await start();
     for (const path of ['/../secret.txt', '/assets/..%2f..%2fsecret.txt', '/%2e%2e/secret.txt', '/assets/%2e%2e%2f%2e%2e%2fsecret.txt', '/..%5csecret.txt', '/assets/%00.js', `/c/c1/tok/..%2f..%2f..%2fsecret.txt`, `/c/c1/tok/assets/..%2f..%2f..%2fsecret.txt`, '/c/c1/tok/%2e%2e/%2e%2e/secret.txt']) {
