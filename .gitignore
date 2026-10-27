@@ -6,5 +6,4 @@ playwright-report/
 *.log
 .env
 *.excalidraw
-build/
 site/media/
