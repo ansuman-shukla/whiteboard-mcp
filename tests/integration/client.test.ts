@@ -9,7 +9,7 @@ import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { removeTempDir } from '../helpers/cleanup.js';
 import WebSocket from 'ws';
 import { CanvasClient, CanvasError, type ConnectOptions } from '../../src/canvas/client.js';
-import type { DaemonInfo } from '../../src/shared/config.js';
+import { VERSION, type DaemonInfo } from '../../src/shared/config.js';
 import type { ExElement, ServerMessage } from '../../src/shared/protocol.js';
 
 const fixture = fileURLToPath(new URL('../fixtures/serve.mjs', import.meta.url));
@@ -254,6 +254,65 @@ describe('daemon restarts', () => {
     await until(() => !alive(pid));
     await expect(client.list()).rejects.toMatchObject({ code: 'daemon_not_running' });
     expect(existsSync(file('daemon.json'))).toBe(false);
+  });
+});
+
+describe('daemon version', () => {
+  const versionFixture = fileURLToPath(new URL('../fixtures/serve-version.mjs', import.meta.url));
+
+  async function runInstalled(version: string): Promise<number> {
+    const child = spawn(process.execPath, [versionFixture], { detached: true, stdio: 'ignore', env: { ...process.env, FAKE_VERSION: version } });
+    child.unref();
+    pids.add(child.pid!);
+    await until(() => existsSync(file('daemon.json')) && daemonInfo().pid === child.pid);
+    return child.pid!;
+  }
+
+  posixIt('replaces an older running daemon with this version on the same port and token', async () => {
+    await useHome();
+    const old = await runInstalled('0.0.1');
+    const token = readFileSync(file('token'), 'utf8');
+    // two sessions of the new version at once still end up with a single new daemon
+    const [a, b] = await Promise.all([connect(), connect()]);
+    const pid = await pidOf(a);
+    expect(await pidOf(b)).toBe(pid);
+    expect(pid).not.toBe(old);
+    expect(alive(old)).toBe(false);
+    expect((await a.health()).version).toBe(VERSION);
+    expect(daemonInfo()).toMatchObject({ pid, port, version: VERSION });
+    expect(a.baseUrl).toBe(`http://127.0.0.1:${port}`);
+    expect(a.token).toBe(token);
+    expect(logLines(new RegExp(`replacing daemon ${old} \\(v0\\.0\\.1\\) with v${VERSION.replace(/\./g, '\\.')}`))).toBeGreaterThanOrEqual(1);
+    expect(logLines(/listening on/)).toBe(1);
+  });
+
+  posixIt('keeps using a newer running daemon instead of downgrading it', async () => {
+    await useHome();
+    const newer = await runInstalled('999.0.0');
+    const client = await connect();
+    expect(await pidOf(client)).toBe(newer);
+    expect((await client.health()).version).toBe('999.0.0');
+    expect(alive(newer)).toBe(true);
+    expect(logLines(/listening on|replacing/)).toBe(0);
+  });
+
+  posixIt('a daemon started next to a newer one bows out and leaves it running', async () => {
+    await useHome();
+    const newer = await runInstalled('999.0.0');
+    const child = spawn(process.execPath, [fixture], { stdio: 'ignore', env: process.env });
+    const code = await new Promise<number | null>((r) => child.once('exit', r));
+    expect(code).toBe(0);
+    expect(alive(newer)).toBe(true);
+    expect(daemonInfo().pid).toBe(newer);
+    expect(logLines(new RegExp(`daemon ${newer} already running`))).toBe(1);
+  });
+
+  posixIt('without autoStart, still reports an older daemon rather than replacing it', async () => {
+    await useHome();
+    const old = await runInstalled('0.0.1');
+    const client = await connect({ autoStart: false });
+    expect(await pidOf(client)).toBe(old);
+    expect(alive(old)).toBe(true);
   });
 });
 
