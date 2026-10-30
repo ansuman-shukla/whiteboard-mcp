@@ -55,6 +55,6 @@ Each agent session runs its own small MCP server. They all talk to one shared da
 ## Light and local
 
 - One runtime dependency (`ws`), no native addons, nothing to compile.
-- A small shared background process serves every agent session and keeps running (about 60 MB, no CPU while idle), so a board you come back to hours later is still live. After an update, the first session on the new version replaces it on its own; `whiteboard-mcp stop` ends it.
+- A small shared background process serves every agent session. It starts when your agent app connects and keeps running (about 60 MB, no CPU while idle), so a board you come back to hours later, or after a restart, is still live. After an update, the first session on the new version replaces it on its own; `whiteboard-mcp stop` ends it.
 - Everything stays on your machine: local-only server, token-protected, fonts bundled. Details in [security.md](security.md).
 - Eleven compact tools, about 7 KB of schema per turn, so it barely touches your context window.

@@ -49,6 +49,7 @@ html[data-theme='dark'] {
   line-height: 1;
   white-space: nowrap;
   user-select: none;
+  max-width: calc(100vw - 28px);
 }
 .xl-pill--error {
   padding: 0 12px;
@@ -58,10 +59,16 @@ html[data-theme='dark'] {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
   padding-right: 6px;
   color: var(--color-gray-60, #7a7a7a);
 }
+.xl-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .xl-dot {
+  flex-shrink: 0;
   width: 7px;
   height: 7px;
   border-radius: 50%;
@@ -73,6 +80,9 @@ html[data-theme='dark'] {
 }
 .xl-status--offline .xl-dot {
   animation: xl-blink 1.2s ease-in-out infinite;
+}
+.xl-status--stopped .xl-dot {
+  background: #e03131;
 }
 .xl-viewers {
   display: inline-flex;
@@ -86,6 +96,7 @@ html[data-theme='dark'] {
   align-items: center;
   gap: 4px;
   height: 24px;
+  flex-shrink: 0;
   min-width: 24px;
   padding: 0 6px;
   border: 0;

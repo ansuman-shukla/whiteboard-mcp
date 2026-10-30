@@ -94,7 +94,7 @@ async function status(): Promise<number> {
   const info = readDaemonInfo();
   const h = info ? await health(info.port) : undefined;
   if (!info || !h) {
-    out('Canvas daemon: not running (it starts automatically on first use).');
+    out('Canvas daemon: not running (it starts when your agent connects).');
     return 0;
   }
   const client = await CanvasClient.connect({ autoStart: false });
