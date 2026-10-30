@@ -17,6 +17,8 @@ export interface LiveEvents {
   /** The user's viewer settings, on connect and when another viewer changes them. */
   prefs(prefs: ViewerPrefs): void;
   dark(): boolean;
+  /** Synced through the daemon's own address because the page's failed; local edits have left the page. */
+  fellBack(): void;
 }
 
 export interface Live {
@@ -117,6 +119,7 @@ export function startLive(api: ExcalidrawImperativeAPI, wsUrls: string[], ev: Li
     throttle.flush();
     if (firstSnapshot && canvas.elements.length) api.scrollToContent(undefined, { fitToContent: true, maxZoom: 1 });
     firstSnapshot = false;
+    if (conn.address() !== wsUrls[0]) void conn.drained().then(() => !stopped && ev.fellBack());
   };
 
   const applyRemote = async (incoming: ExElement[], files: BinaryFile[] | undefined, actor: Actor) => {

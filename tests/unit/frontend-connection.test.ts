@@ -138,13 +138,15 @@ describe('viewer connection behind a preview proxy', () => {
   const triedAt = (url: string) => sockets.filter((s) => s.url === url).length;
 
   it('when the proxy goes away, reconnects straight to the daemon and never says stopped', () => {
-    start([PROXY, DIRECT]);
+    const conn = start([PROXY, DIRECT]);
+    expect(conn.address()).toBe(PROXY);
     vi.advanceTimersByTime(0);
     expect([last(), live().url]).toEqual(['live', PROXY]);
     FakeSocket.gone.add(PROXY);
     live().drop();
     vi.advanceTimersByTime(3000);
     expect([last(), live().url]).toEqual(['live', DIRECT]);
+    expect(conn.address()).toBe(DIRECT);
     vi.advanceTimersByTime(STOPPED_AFTER_MS * 3);
     expect(statuses).not.toContain('stopped');
   });

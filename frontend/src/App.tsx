@@ -7,6 +7,7 @@ import type { LinkStatus } from './connection';
 import { createFollower } from './follow';
 import { Icon } from './Icon';
 import { startLive, type Live } from './live';
+import { leaveDeadProxy } from './proxy';
 import { SAVE_ICON, SaveForm } from './SaveForm';
 import { StatusPill } from './StatusPill';
 
@@ -67,6 +68,7 @@ export function App() {
       title: (t) => setTitle(t === config.canvasId ? '' : t),
       prefs: (p) => setThemeChoice(p.theme),
       dark: () => themeRef.current === 'dark',
+      fellBack: () => void leaveDeadProxy(config.directPage),
     });
     live.current = session;
     return () => {

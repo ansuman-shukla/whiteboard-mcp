@@ -8,6 +8,8 @@ export interface ViewerConfig {
   embed: boolean;
   /** Socket addresses in the order to try: next to the page, then the daemon's own (a proxy in front of the page can go away). */
   wsUrls: string[];
+  /** The daemon's own address for this page, when the page reached it through a proxy. */
+  directPage?: string;
 }
 
 /**
@@ -25,7 +27,14 @@ export function readConfig(loc: Location = window.location, doc: Document = docu
   ws.search = '';
   ws.hash = '';
   const direct = meta(VIEWER_META.direct);
-  return { canvasId, theme, embed: params.get('embed') === '1', wsUrls: direct && direct !== ws.href ? [ws.href, direct] : [ws.href] };
+  const proxied = !!direct && direct !== ws.href;
+  return {
+    canvasId,
+    theme,
+    embed: params.get('embed') === '1',
+    wsUrls: proxied ? [ws.href, direct] : [ws.href],
+    ...(proxied ? { directPage: `${direct.replace(/^ws:/, 'http:').replace(/ws$/, '')}${loc.search}` } : {}),
+  };
 }
 
 /** localStorage can throw (sandboxed iframes, disabled storage, WKWebView quirks). */

@@ -11,6 +11,10 @@ export interface Connection {
   isOpen(): boolean;
   /** Reconnect immediately if currently waiting for a retry. */
   retryNow(): void;
+  /** The address in use (or being tried). */
+  address(): string;
+  /** Resolves once what was sent so far has left the page (or after a couple of seconds). */
+  drained(): Promise<void>;
   close(): void;
 }
 
@@ -85,6 +89,10 @@ export function connect(urls: string[], onMessage: (msg: ServerMessage) => void,
       return true;
     },
     isOpen: () => ws?.readyState === WebSocket.OPEN,
+    address: () => urls[current]!,
+    async drained() {
+      for (let i = 0; i < 40 && (ws?.bufferedAmount ?? 0) > 0; i++) await new Promise((r) => setTimeout(r, 50));
+    },
     retryNow() {
       if (closed || ws) return;
       attempt = 0;
