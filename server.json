@@ -7,12 +7,12 @@
     "url": "https://github.com/ansuman-shukla/whiteboard-mcp",
     "source": "github"
   },
-  "version": "0.3.2",
+  "version": "0.3.3",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@ansuman-shukla/whiteboard-mcp",
-      "version": "0.3.2",
+      "version": "0.3.3",
       "transport": {
         "type": "stdio"
       }
