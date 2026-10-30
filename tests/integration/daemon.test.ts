@@ -662,16 +662,14 @@ describe('lifecycle', () => {
     expect(idle).toBe(1);
   });
 
-  it('by default stays up for 6 hours without activity before calling onIdle', async () => {
+  it('by default never calls onIdle, however long it sits without viewers or requests', async () => {
     delete process.env.WHITEBOARD_IDLE_MS;
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
     try {
       let idle = 0;
       await start({ onIdle: () => idle++ });
-      vi.advanceTimersByTime(6 * 60 * 60_000 - 60_000);
+      vi.advanceTimersByTime(30 * 24 * 60 * 60_000);
       expect(idle).toBe(0);
-      vi.advanceTimersByTime(90_000);
-      expect(idle).toBe(1);
     } finally {
       vi.useRealTimers();
     }
