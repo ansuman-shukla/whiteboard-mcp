@@ -14,9 +14,13 @@ export interface Connection {
   close(): void;
 }
 
-/** One WebSocket at a time, reconnecting with jittered backoff until closed. */
-export function connect(url: string, onMessage: (msg: ServerMessage) => void, onStatus: (status: LinkStatus) => void): Connection {
+/**
+ * One WebSocket at a time, reconnecting with jittered backoff until closed. An attempt that fails moves on to
+ * the next address (the page's own proxy may be gone while the daemon runs on); one that connected is retried first.
+ */
+export function connect(urls: string[], onMessage: (msg: ServerMessage) => void, onStatus: (status: LinkStatus) => void): Connection {
   let ws: WebSocket | null = null;
+  let current = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let attempt = 0;
   let closed = false;
@@ -43,9 +47,13 @@ export function connect(url: string, onMessage: (msg: ServerMessage) => void, on
     clearTimeout(timer);
     timer = undefined;
     if (closed || ws) return;
-    const s = new WebSocket(url);
+    const s = new WebSocket(urls[current]!);
     ws = s;
-    s.onopen = up;
+    let opened = false;
+    s.onopen = () => {
+      opened = true;
+      up();
+    };
     s.onmessage = (e) => {
       if (typeof e.data !== 'string') return;
       let msg: ServerMessage;
@@ -62,6 +70,7 @@ export function connect(url: string, onMessage: (msg: ServerMessage) => void, on
       detach(s);
       if (ws === s) ws = null;
       if (closed) return;
+      if (!opened) current = (current + 1) % urls.length;
       down();
       timer = setTimeout(open, backoffDelay(attempt++));
     };

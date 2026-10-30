@@ -61,7 +61,7 @@ async function loadFonts(elements: readonly ExElement[]): Promise<void> {
 }
 
 /** Wires an Excalidraw instance to the daemon: snapshot/elements sync, local change upload and viewer requests. */
-export function startLive(api: ExcalidrawImperativeAPI, wsUrl: string, ev: LiveEvents): Live {
+export function startLive(api: ExcalidrawImperativeAPI, wsUrls: string[], ev: LiveEvents): Live {
   const known: Known = new Map();
   const sentFiles = new Set<string>();
   let synced = false;
@@ -186,7 +186,7 @@ export function startLive(api: ExcalidrawImperativeAPI, wsUrl: string, ev: LiveE
     }
   };
 
-  const conn = connect(wsUrl, onMessage, (status) => {
+  const conn = connect(wsUrls, onMessage, (status) => {
     if (status !== 'live') {
       synced = false;
       settleSave({ error: 'connection lost' });

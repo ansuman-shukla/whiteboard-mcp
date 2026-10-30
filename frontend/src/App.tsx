@@ -60,7 +60,7 @@ export function App() {
     if (!api || !config.canvasId) return;
     window.__excalidrawAPI = api;
     const follower = createFollower(api, () => followRef.current);
-    const session = startLive(api, config.wsUrl, {
+    const session = startLive(api, config.wsUrls, {
       status: setStatus,
       viewers: setViewers,
       agentDrew: follower.push,
