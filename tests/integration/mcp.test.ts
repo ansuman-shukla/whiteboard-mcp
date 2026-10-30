@@ -654,3 +654,58 @@ describe('chat apps (their own window, not a terminal)', () => {
     }
   });
 });
+
+describe('daemon start when the agent app connects', () => {
+  const homes: string[] = [];
+  const eperm = fileURLToPath(new URL('../fixtures/serve-listen-eperm.mjs', import.meta.url));
+  const until = async (check: () => boolean, timeoutMs = 8000): Promise<void> => {
+    const deadline = Date.now() + timeoutMs;
+    while (!check()) {
+      if (Date.now() > deadline) throw new Error('condition not met in time');
+      await new Promise((r) => setTimeout(r, 50));
+    }
+  };
+  const isolated = async (extra: Record<string, string> = {}) => {
+    const dir = join(root, `connect-${homes.length}`);
+    homes.push(dir);
+    return { WHITEBOARD_HOME: dir, WHITEBOARD_PORT: String(await freePort()), ...extra };
+  };
+  const readLog = (dir: string) => (existsSync(join(dir, 'daemon.log')) ? readFileSync(join(dir, 'daemon.log'), 'utf8') : '');
+
+  afterAll(() => {
+    for (const dir of homes) {
+      try {
+        process.kill((JSON.parse(readFileSync(join(dir, 'daemon.json'), 'utf8')) as { pid: number }).pid, 'SIGTERM');
+      } catch {
+        // never started or already gone
+      }
+    }
+  });
+
+  it('starts the daemon right after the handshake, before any tool call, so board links work again', async () => {
+    const e = await isolated();
+    await connect({ env: e });
+    await until(() => existsSync(join(e.WHITEBOARD_HOME, 'daemon.json')));
+    const { port, pid } = JSON.parse(readFileSync(join(e.WHITEBOARD_HOME, 'daemon.json'), 'utf8')) as { port: number; pid: number };
+    expect(await (await fetch(`http://127.0.0.1:${port}/health`)).json()).toMatchObject({ ok: true, app: 'whiteboard-mcp', pid });
+  });
+
+  it('never makes the handshake or the tool list wait for a daemon that is slow to start', async () => {
+    const hang = join(root, 'hang.mjs');
+    writeFileSync(hang, 'setTimeout(() => {}, 4000);\n');
+    const started = Date.now();
+    const client = await connect({ env: await isolated({ WHITEBOARD_ENTRY: hang }) });
+    expect((await client.listTools()).tools).toHaveLength(11);
+    expect(Date.now() - started).toBeLessThan(5000);
+  });
+
+  it('when the daemon may not start (a sandbox), the server keeps working and the first tool call says why', async () => {
+    const e = await isolated({ WHITEBOARD_ENTRY: eperm });
+    const client = await connect({ env: e });
+    await until(() => readLog(e.WHITEBOARD_HOME).includes('listen failed'));
+    expect((await client.listTools()).tools).toHaveLength(11);
+    const { text, result } = await call(client, 'canvas_open', { title: 'Sandboxed' });
+    expect(result.isError).toBe(true);
+    expect(text).toMatch(/not permitted here, probably a sandbox/);
+  });
+});

@@ -32,6 +32,15 @@ export function startMcpServer(opts: McpServerOptions = {}): JsonRpcConnection {
   const session = opts.session ?? new Session();
   const ctx = new ToolContext(session);
   let clientWantsRoots = false;
+  let warmedUp = false;
+
+  // Start (or upgrade) the daemon as soon as the agent app is up, not on the first drawing, so board
+  // links work again after a reboot without a prompt. In the background: the handshake never waits for it.
+  const warmUp = (): void => {
+    if (warmedUp) return;
+    warmedUp = true;
+    ctx.connect().catch((err: unknown) => debug(`daemon not started yet: ${err instanceof Error ? err.message : String(err)}`));
+  };
 
   const queryRoots = (): void => {
     if (!clientWantsRoots) return;
@@ -85,6 +94,7 @@ export function startMcpServer(opts: McpServerOptions = {}): JsonRpcConnection {
       }
     },
     notification(method) {
+      if (method === 'notifications/initialized') warmUp();
       if (method === 'notifications/initialized' || method === 'notifications/roots/list_changed') queryRoots();
     },
   });
