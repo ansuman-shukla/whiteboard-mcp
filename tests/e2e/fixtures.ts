@@ -1,4 +1,4 @@
-import { test as base, expect, type Page } from '@playwright/test';
+import { test as base, expect, type Page, type WebSocketRoute } from '@playwright/test';
 
 declare global {
   interface Window {
@@ -93,6 +93,36 @@ export async function openViewer(page: Page, canvasId: string, query = ''): Prom
   await page.goto(`/c/${canvasId}/${TOKEN}/${query}`);
   await page.waitForFunction(() => !!window.__excalidrawAPI);
   await expect(page.locator('.xl-status')).toHaveText('live');
+}
+
+/** Lets a page's board sockets be cut off (as if the daemon went away) and let through again. Call before opening the viewer. */
+export async function daemonSwitch(page: Page): Promise<{ cut(): Promise<void>; restore(): void }> {
+  let blocked = false;
+  const live: { client: WebSocketRoute; server: WebSocketRoute }[] = [];
+  await page.routeWebSocket(/\/ws$/, (client) => {
+    if (blocked) return void client.close();
+    live.push({ client, server: client.connectToServer() });
+  });
+  return {
+    async cut() {
+      blocked = true;
+      for (const { client, server } of live.splice(0)) {
+        await server.close();
+        await client.close();
+      }
+    },
+    restore() {
+      blocked = false;
+    },
+  };
+}
+
+export const STOPPED_LABEL = 'server stopped — ask your agent to open the board';
+
+/** Cuts the page off its daemon and waits for the viewer to say the server stopped. */
+export async function untilStopped(page: Page, daemon: { cut(): Promise<void> }): Promise<void> {
+  await daemon.cut();
+  await expect(page.locator('.xl-status')).toHaveClass(/xl-status--stopped/, { timeout: 15_000 });
 }
 
 export function sceneElements(page: Page): Promise<Element[]> {

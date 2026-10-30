@@ -1,14 +1,18 @@
-import { api, expect, openViewer, sceneElements, shared, test } from './fixtures';
+import { api, daemonSwitch, expect, openViewer, sceneElements, shared, test, untilStopped } from './fixtures';
 
 // `.App-bottom-bar` is a full-height layout wrapper on narrow screens; its visible controls are matched individually.
 const CONTROLS = ['.Island', '.mobile-misc-tools-container', '.main-menu-trigger', '.help-icon', '.default-sidebar-trigger', '.ToolIcon', '.zoom-actions', '.undo-redo-buttons'].join(',');
 
-for (const width of [400, 700, 1280]) {
-  test(`status pill does not overlap Excalidraw chrome at ${width}px`, async ({ page, rest, canvasId }) => {
+for (const [width, state] of [340, 400, 700, 1280].flatMap((w) => [[w, 'live'], [w, 'stopped']] as const)) {
+  test(`status pill (${state}) stays on screen and does not overlap Excalidraw chrome at ${width}px`, async ({ page, rest, canvasId }) => {
+    if (state === 'stopped') test.setTimeout(45_000);
     await page.setViewportSize({ width, height: 760 });
     const { buildElements } = await shared();
     await rest.post(api.elements(canvasId), { elements: buildElements([{ id: 'a', type: 'rectangle', x: 0, y: 0, width: 200, height: 80, label: 'Box' }], []).elements });
+    const daemon = await daemonSwitch(page);
     await openViewer(page, canvasId);
+    if (state === 'stopped') await untilStopped(page, daemon);
+    await expect(page.locator('.xl-pill button[title="Note to agent"]')).toBeInViewport({ ratio: 1 });
     const pill = (await page.locator('.xl-pill').boundingBox())!;
     expect(pill.x).toBeGreaterThanOrEqual(0);
     expect(pill.y).toBeGreaterThanOrEqual(0);

@@ -1,5 +1,4 @@
-import type { WebSocketRoute } from '@playwright/test';
-import { api, drawRectangle, expect, openViewer, sceneElements, shared, test, toViewport, type Element } from './fixtures';
+import { STOPPED_LABEL, api, daemonSwitch, drawRectangle, expect, openViewer, sceneElements, shared, test, toViewport, type Element } from './fixtures';
 
 const box = (id: string, x: number, label: string, extra: Record<string, unknown> = {}) => ({ id, type: 'rectangle', x, y: 0, width: 200, height: 80, label, ...extra });
 const ids = async (page: Parameters<typeof sceneElements>[0]) => (await sceneElements(page)).map((el) => el.id);
@@ -96,19 +95,10 @@ test('two viewers stay in sync both ways', async ({ page, context, rest, canvasI
 });
 
 test('a dropped socket reconnects and resyncs edits made on both sides meanwhile', async ({ page, rest, canvasId }) => {
-  let blocked = false;
-  const live: { client: WebSocketRoute; server: WebSocketRoute }[] = [];
-  await page.routeWebSocket(/\/ws$/, (client) => {
-    if (blocked) return void client.close();
-    live.push({ client, server: client.connectToServer() });
-  });
+  const daemon = await daemonSwitch(page);
   await openViewer(page, canvasId);
 
-  blocked = true;
-  for (const { client, server } of live.splice(0)) {
-    await server.close();
-    await client.close();
-  }
+  await daemon.cut();
   await expect(page.locator('.xl-status')).toHaveText('reconnecting…');
 
   const { buildElements } = await shared();
@@ -116,7 +106,7 @@ test('a dropped socket reconnects and resyncs edits made on both sides meanwhile
   await drawRectangle(page, { x: 500, y: 420 }, { x: 640, y: 520 });
   await page.waitForTimeout(300);
 
-  blocked = false;
+  daemon.restore();
   await expect(page.locator('.xl-status')).toHaveText('live', { timeout: 20_000 });
   await expect.poll(() => ids(page)).toContain('while-away');
   await expect
@@ -128,25 +118,14 @@ test('a dropped socket reconnects and resyncs edits made on both sides meanwhile
 
 test('a tab whose daemon stays gone says so and how to get it back, then goes live again by itself', async ({ page, canvasId }) => {
   test.setTimeout(60_000);
-  let blocked = false;
-  const live: { client: WebSocketRoute; server: WebSocketRoute }[] = [];
-  await page.routeWebSocket(/\/ws$/, (client) => {
-    if (blocked) return void client.close();
-    live.push({ client, server: client.connectToServer() });
-  });
+  const daemon = await daemonSwitch(page);
   await openViewer(page, canvasId);
-
-  blocked = true;
-  for (const { client, server } of live.splice(0)) {
-    await server.close();
-    await client.close();
-  }
   const status = page.locator('.xl-status');
+  await daemon.cut();
   await expect(status).toHaveText('reconnecting…');
-  await expect(status).toHaveText('server stopped — ask your agent to open the board', { timeout: 15_000 });
-  await expect(status).toHaveClass(/xl-status--stopped/);
+  await expect(status).toHaveText(STOPPED_LABEL, { timeout: 15_000, useInnerText: true });
   await expect(status).toHaveAttribute('title', /Your agent starts it again; this tab then reconnects by itself/);
 
-  blocked = false;
+  daemon.restore();
   await expect(status).toHaveText('live', { timeout: 20_000 });
 });
