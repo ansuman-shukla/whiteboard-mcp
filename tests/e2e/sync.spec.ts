@@ -125,3 +125,28 @@ test('a dropped socket reconnects and resyncs edits made on both sides meanwhile
   const ch = await rest.get(api.changes(canvasId));
   expect(ch.changes.some((c: { actor: string; kind: string }) => c.actor === 'human' && c.kind === 'created')).toBe(true);
 });
+
+test('a tab whose daemon stays gone says so and how to get it back, then goes live again by itself', async ({ page, canvasId }) => {
+  test.setTimeout(60_000);
+  let blocked = false;
+  const live: { client: WebSocketRoute; server: WebSocketRoute }[] = [];
+  await page.routeWebSocket(/\/ws$/, (client) => {
+    if (blocked) return void client.close();
+    live.push({ client, server: client.connectToServer() });
+  });
+  await openViewer(page, canvasId);
+
+  blocked = true;
+  for (const { client, server } of live.splice(0)) {
+    await server.close();
+    await client.close();
+  }
+  const status = page.locator('.xl-status');
+  await expect(status).toHaveText('reconnecting…');
+  await expect(status).toHaveText('server stopped — ask your agent to open the board', { timeout: 15_000 });
+  await expect(status).toHaveClass(/xl-status--stopped/);
+  await expect(status).toHaveAttribute('title', /Your agent starts it again; this tab then reconnects by itself/);
+
+  blocked = false;
+  await expect(status).toHaveText('live', { timeout: 20_000 });
+});

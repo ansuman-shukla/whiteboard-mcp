@@ -1,7 +1,10 @@
 import type { ClientMessage, ServerMessage } from '../../src/shared/protocol';
 import { backoffDelay } from './sync';
 
-export type LinkStatus = 'connecting' | 'live' | 'offline';
+export type LinkStatus = 'connecting' | 'live' | 'offline' | 'stopped';
+
+/** Unreachable this long is no hiccup (a version swap takes well under a second): the daemon isn't running. */
+export const STOPPED_AFTER_MS = 10_000;
 
 export interface Connection {
   send(msg: ClientMessage): boolean;
@@ -17,9 +20,24 @@ export function connect(url: string, onMessage: (msg: ServerMessage) => void, on
   let timer: ReturnType<typeof setTimeout> | undefined;
   let attempt = 0;
   let closed = false;
+  let stopped = false;
+  let stoppedTimer: ReturnType<typeof setTimeout> | undefined;
 
   const detach = (s: WebSocket) => {
     s.onopen = s.onmessage = s.onerror = s.onclose = null;
+  };
+  const up = () => {
+    clearTimeout(stoppedTimer);
+    stoppedTimer = undefined;
+    stopped = false;
+    onStatus('live');
+  };
+  const down = () => {
+    onStatus(stopped ? 'stopped' : 'offline');
+    stoppedTimer ??= setTimeout(() => {
+      stopped = true;
+      onStatus('stopped');
+    }, STOPPED_AFTER_MS);
   };
   const open = () => {
     clearTimeout(timer);
@@ -27,7 +45,7 @@ export function connect(url: string, onMessage: (msg: ServerMessage) => void, on
     if (closed || ws) return;
     const s = new WebSocket(url);
     ws = s;
-    s.onopen = () => onStatus('live');
+    s.onopen = up;
     s.onmessage = (e) => {
       if (typeof e.data !== 'string') return;
       let msg: ServerMessage;
@@ -44,7 +62,7 @@ export function connect(url: string, onMessage: (msg: ServerMessage) => void, on
       detach(s);
       if (ws === s) ws = null;
       if (closed) return;
-      onStatus('offline');
+      down();
       timer = setTimeout(open, backoffDelay(attempt++));
     };
   };
@@ -66,6 +84,7 @@ export function connect(url: string, onMessage: (msg: ServerMessage) => void, on
     close() {
       closed = true;
       clearTimeout(timer);
+      clearTimeout(stoppedTimer);
       const s = ws;
       if (!s) return;
       ws = null;

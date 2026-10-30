@@ -74,6 +74,9 @@ html[data-theme='dark'] {
 .xl-status--offline .xl-dot {
   animation: xl-blink 1.2s ease-in-out infinite;
 }
+.xl-status--stopped .xl-dot {
+  background: #e03131;
+}
 .xl-viewers {
   display: inline-flex;
   align-items: center;

@@ -11,7 +11,18 @@ interface Props {
   onNote(text: string): boolean;
 }
 
-const LABELS: Record<LinkStatus, string> = { connecting: 'connecting…', live: 'live', offline: 'reconnecting…' };
+const LABELS: Record<LinkStatus, string> = {
+  connecting: 'connecting…',
+  live: 'live',
+  offline: 'reconnecting…',
+  stopped: 'server stopped — ask your agent to open the board',
+};
+const TITLES: Record<LinkStatus, string> = {
+  connecting: 'Waiting for the canvas daemon',
+  live: 'Connected to the canvas',
+  offline: 'Waiting for the canvas daemon',
+  stopped: "Whiteboard MCP's background process isn't running (after a restart, or it was stopped). Your agent starts it again; this tab then reconnects by itself.",
+};
 const TOAST_MS = 2200;
 
 const EYE = 'M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12zm10 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6z';
@@ -53,7 +64,7 @@ export function StatusPill({ status, viewers, follow, onToggleFollow, onNote }: 
   return (
     <div className="xl-pill-wrap" ref={root}>
       <div className="xl-pill" data-testid="status-pill">
-        <span className={`xl-status xl-status--${status}`} role="status" title={status === 'live' ? 'Connected to the canvas' : 'Waiting for the canvas daemon'}>
+        <span className={`xl-status xl-status--${status}`} role="status" title={TITLES[status]}>
           <i className="xl-dot" />
           {toast ?? LABELS[status]}
         </span>
