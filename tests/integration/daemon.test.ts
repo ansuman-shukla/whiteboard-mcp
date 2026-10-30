@@ -410,8 +410,15 @@ describe('static frontend', () => {
     expect(page.status).toBe(200);
     expect(page.headers.get('cache-control')).toBe('no-store');
     expect(page.headers.get('referrer-policy')).toBe('no-referrer');
-    expect(await page.text()).toBe('<!doctype html><html><head><meta name="whiteboard-canvas" content="c1"><title>W</title></head><body><div id="root"></div></body></html>');
-    expect(Number(page.headers.get('content-length'))).toBe(Buffer.byteLength('<!doctype html><html><head><meta name="whiteboard-canvas" content="c1"><title>W</title></head><body><div id="root"></div></body></html>'));
+    // The board, and (a valid link) the daemon's own socket address for when a proxy in front of the page is gone.
+    const html = `<!doctype html><html><head><meta name="whiteboard-canvas" content="c1"><meta name="whiteboard-direct" content="ws://127.0.0.1:${d.port}/c/c1/${d.token}/ws"><title>W</title></head><body><div id="root"></div></body></html>`;
+    expect(await page.text()).toBe(html);
+    expect(Number(page.headers.get('content-length'))).toBe(Buffer.byteLength(html));
+    // A wrong token gets the page (its socket is refused) but never a socket address built from that token.
+    const forged = await fetch(`${d.url}/c/c1/${'f'.repeat(64)}/`);
+    expect(forged.status).toBe(200);
+    expect(await forged.text()).toBe('<!doctype html><html><head><meta name="whiteboard-canvas" content="c1"><title>W</title></head><body><div id="root"></div></body></html>');
+    expect(await (await fetch(`${d.url}/c/c1/%22%3E%3Cscript%3E/`)).text()).not.toContain('<script>');
     expect((await fetch(`${base}?embed=1&theme=dark`)).status).toBe(200);
     const js = await fetch(`${base}assets/app.js`);
     expect([js.status, js.headers.get('cache-control'), await js.text()]).toEqual([200, 'public, max-age=31536000, immutable', 'console.log(1)']);

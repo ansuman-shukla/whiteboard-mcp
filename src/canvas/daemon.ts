@@ -11,6 +11,7 @@ import { APP_NAME, VERSION, compareVersions, preferredPort, stateDir, statePath,
 import {
   API,
   CANVAS_ID_PATTERN,
+  VIEWER_META,
   parseViewerPath,
   type Actor,
   type ApplyResponse,
@@ -567,8 +568,11 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<Daemon> {
       return isViewer ? sendText(res, 503, 'frontend not built') : sendText(res, 404, 'not found');
     }
     const content = await readFile(real);
-    // The page can't always read its board from its own URL (a proxy may mount it at '/'), so it's told here.
-    const data = viewer && isViewer ? Buffer.from(content.toString('utf8').replace('<head>', `<head><meta name="whiteboard-canvas" content="${viewer.canvasId}">`)) : content;
+    // The page can't always read its board from its own URL (a proxy may mount it at '/'), so it's told here,
+    // and, for a valid link only, the daemon's own socket address: an in-app preview's proxy can go away while the daemon runs on.
+    const meta = (name: string, content: string) => `<meta name="${name}" content="${content}">`;
+    const direct = viewer && tokenMatches(viewer.token) ? meta(VIEWER_META.direct, `ws://127.0.0.1:${port}${API.viewer(viewer.canvasId, viewer.token)}ws`) : '';
+    const data = viewer && isViewer ? Buffer.from(content.toString('utf8').replace('<head>', `<head>${meta(VIEWER_META.canvas, viewer.canvasId)}${direct}`)) : content;
     if (res.destroyed) return;
     res.writeHead(200, {
       'Content-Type': MIME[extname(real).toLowerCase()] ?? 'application/octet-stream',
