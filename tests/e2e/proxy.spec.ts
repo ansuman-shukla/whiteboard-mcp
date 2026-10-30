@@ -60,3 +60,32 @@ test('the viewer works behind a proxy that mounts the board URL at its own root'
     await proxy.close();
   }
 });
+
+test.describe('a proxy that goes away', () => {
+  // The browser reports the one attempt through the closed proxy before the viewer moves on.
+  test.use({ allowedErrors: [/^WebSocket connection to 'ws:\/\/127\.0\.0\.1:\d+\/ws' failed: .*ERR_CONNECTION_REFUSED/] });
+
+  test('the tab reconnects straight to the daemon, gets what changed meanwhile, and never says the server stopped', async ({ page, rest, canvasId }) => {
+    test.setTimeout(45_000);
+    const { buildElements } = await shared();
+    await rest.post(api.elements(canvasId), { elements: buildElements([{ id: 'a', type: 'rectangle', x: 0, y: 0, width: 200, height: 80, label: 'Before' }], []).elements });
+    const proxy = await mountingProxy(`/c/${canvasId}/${TOKEN}/`);
+    await page.goto(`http://127.0.0.1:${proxy.port}/`);
+    const status = page.locator('.xl-status');
+    await expect(status).toHaveText('live');
+    await page.evaluate(() => {
+      const seen: string[] = ((window as unknown as { seen: string[] }).seen = []);
+      new MutationObserver(() => seen.push(document.querySelector('.xl-status')?.className ?? '')).observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true });
+    });
+
+    await proxy.close();
+    await expect(status).toHaveText('reconnecting…');
+    await rest.post(api.elements(canvasId), { elements: buildElements([{ id: 'b', type: 'rectangle', x: 300, y: 0, width: 200, height: 80, label: 'After' }], []).elements });
+    await expect(status).toHaveText('live', { timeout: 15_000 });
+    await expect.poll(async () => (await sceneElements(page)).map((e) => e.text).filter(Boolean).sort(), { timeout: 10_000 }).toEqual(['After', 'Before']);
+    await expect.poll(async () => (await rest.get(api.canvas(canvasId))).viewers).toBe(1);
+    await page.waitForTimeout(12_000);
+    await expect(status).toHaveText('live');
+    expect(await page.evaluate(() => (window as unknown as { seen: string[] }).seen.some((c) => c.includes('stopped')))).toBe(false);
+  });
+});
