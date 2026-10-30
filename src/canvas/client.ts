@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { APP_NAME, stateDir, statePath, type DaemonInfo } from '../shared/config.js';
+import { APP_NAME, VERSION, compareVersions, stateDir, statePath, type DaemonInfo } from '../shared/config.js';
 import {
   API,
   type Actor,
@@ -37,6 +37,7 @@ export interface ConnectOptions {
 interface Endpoint {
   baseUrl: string;
   token: string;
+  version: string;
 }
 
 const HTTP_TIMEOUT_MS = 10_000;
@@ -79,8 +80,11 @@ async function probe(): Promise<Endpoint | undefined> {
   }
   const baseUrl = `http://127.0.0.1:${info.port}`;
   const health = await fetchHealth(baseUrl);
-  return token && health?.app === APP_NAME && health.pid === info.pid ? { baseUrl, token } : undefined;
+  return token && health?.app === APP_NAME && health.pid === info.pid ? { baseUrl, token, version: String(health.version) } : undefined;
 }
+
+/** A daemon older than this client gets replaced: the one we spawn stops it and takes over. */
+const isCurrent = (endpoint: Endpoint | undefined): endpoint is Endpoint => !!endpoint && compareVersions(endpoint.version, VERSION) >= 0;
 
 /** Why a daemon we started gave up, from its own last line in daemon.log (it logs e.g. `listen failed: ...` before exiting). */
 function startFailure(pid: number | undefined, code: number | null, signal: NodeJS.Signals | null): CanvasError {
@@ -101,7 +105,7 @@ function startFailure(pid: number | undefined, code: number | null, signal: Node
 
 async function discover(opts: ConnectOptions): Promise<Endpoint> {
   const found = await probe();
-  if (found) return found;
+  if (isCurrent(found) || (found && opts.autoStart === false)) return found;
   if (opts.autoStart === false) throw new CanvasError('canvas daemon is not running', 503, 'daemon_not_running');
   const entry = opts.entry ?? (process.env.WHITEBOARD_ENTRY || fileURLToPath(new URL('../cli.js', import.meta.url)));
   let spawnError: Error | undefined;
@@ -118,7 +122,7 @@ async function discover(opts: ConnectOptions): Promise<Endpoint> {
     if (spawnError) throw new CanvasError(`could not start the canvas daemon: ${spawnError.message}`, 503, 'daemon_start_failed');
     await sleep(POLL_MS);
     const endpoint = await probe();
-    if (endpoint) return endpoint;
+    if (isCurrent(endpoint)) return endpoint;
     // Exit code 0 means another daemon holds the lock; keep probing for that one.
     if (exit && exit.code !== 0) throw startFailure(child.pid, exit.code, exit.signal);
   }

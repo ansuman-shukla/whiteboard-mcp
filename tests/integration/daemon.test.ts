@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { request as httpRequest } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { removeTempDir } from '../helpers/cleanup.js';
 import WebSocket from 'ws';
 import { startDaemon, type Daemon, type DaemonOptions } from '../../src/canvas/daemon.js';
@@ -660,6 +660,21 @@ describe('lifecycle', () => {
     expect(Date.now() - closedAt).toBeGreaterThanOrEqual(100);
     await sleep(200);
     expect(idle).toBe(1);
+  });
+
+  it('by default stays up for 6 hours without activity before calling onIdle', async () => {
+    delete process.env.WHITEBOARD_IDLE_MS;
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
+    try {
+      let idle = 0;
+      await start({ onIdle: () => idle++ });
+      vi.advanceTimersByTime(6 * 60 * 60_000 - 60_000);
+      expect(idle).toBe(0);
+      vi.advanceTimersByTime(90_000);
+      expect(idle).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('close() resolves promptly with open sockets, keep-alive connections and pending requests', async () => {

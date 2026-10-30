@@ -7,7 +7,7 @@ import type { Duplex } from 'node:stream';
 import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer, WebSocket, type RawData } from 'ws';
-import { APP_NAME, VERSION, preferredPort, stateDir, statePath, type DaemonInfo } from '../shared/config.js';
+import { APP_NAME, VERSION, compareVersions, preferredPort, stateDir, statePath, type DaemonInfo } from '../shared/config.js';
 import {
   API,
   CANVAS_ID_PATTERN,
@@ -124,7 +124,8 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 const MAX_REQUEST_TIMEOUT_MS = 60_000;
 const UNLOAD_INTERVAL_MS = 60_000;
 const UNLOAD_IDLE_MS = 10 * 60_000;
-const DEFAULT_IDLE_EXIT_MS = 30 * 60_000;
+const DEFAULT_IDLE_EXIT_MS = 6 * 60 * 60_000;
+const STOP_TIMEOUT_MS = 10_000;
 const REQUEST_TYPES: ReadonlySet<string> = new Set<ViewerRequestType>(['screenshot', 'mermaid', 'focus']);
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -882,14 +883,29 @@ function pidAlive(pid: number): boolean {
   }
 }
 
-async function healthyAt(port: number): Promise<{ pid: number } | undefined> {
+async function healthyAt(port: number): Promise<{ pid: number; version: string } | undefined> {
   try {
     const res = await fetch(`http://127.0.0.1:${port}/health`, { signal: AbortSignal.timeout(1000) });
-    const body = (await res.json()) as { app?: unknown; pid?: unknown };
-    return res.ok && body.app === APP_NAME && typeof body.pid === 'number' ? { pid: body.pid } : undefined;
+    const body = (await res.json()) as { app?: unknown; pid?: unknown; version?: unknown };
+    return res.ok && body.app === APP_NAME && typeof body.pid === 'number' ? { pid: body.pid, version: String(body.version) } : undefined;
   } catch {
     return undefined;
   }
+}
+
+/** SIGTERMs a daemon (every version shuts down gracefully on it, within 5 s) and waits for it to exit. */
+async function stopDaemon(pid: number): Promise<boolean> {
+  try {
+    process.kill(pid, 'SIGTERM');
+  } catch {
+    // already gone
+  }
+  const deadline = Date.now() + STOP_TIMEOUT_MS;
+  while (pidAlive(pid)) {
+    if (Date.now() >= deadline) return false;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  return true;
 }
 
 function tryLock(file: string): boolean {
@@ -937,13 +953,24 @@ export async function runDaemon(): Promise<void> {
     return typeof info?.port === 'number' ? info.port : preferredPort();
   };
 
-  const lockDeadline = Date.now() + 5000;
+  let lockDeadline = Date.now() + 5000;
   while (!tryLock(lockFile)) {
     const owner = readPid(lockFile);
     const ownerAlive = owner !== undefined && owner !== process.pid && pidAlive(owner);
-    if (ownerAlive && (await healthyAt(knownPort()))?.pid === owner) {
-      log(`daemon ${owner} already running`);
-      process.exit(0);
+    const running = ownerAlive ? await healthyAt(knownPort()) : undefined;
+    if (owner !== undefined && running?.pid === owner) {
+      // Only ever upgrade: an older client starting us must not take down a newer daemon.
+      if (compareVersions(running.version, VERSION) >= 0) {
+        log(`daemon ${owner} already running`);
+        process.exit(0);
+      }
+      log(`replacing daemon ${owner} (v${running.version}) with v${VERSION}`);
+      if (!(await stopDaemon(owner))) {
+        log(`daemon ${owner} (v${running.version}) did not stop within ${STOP_TIMEOUT_MS}ms`);
+        process.exit(1);
+      }
+      lockDeadline = Date.now() + 5000;
+      continue;
     }
     // An empty lock is being written right now; a live but silent owner may still be starting
     // (after the deadline assume its pid was reused).

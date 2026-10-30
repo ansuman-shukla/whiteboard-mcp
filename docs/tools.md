@@ -55,6 +55,6 @@ Each agent session runs its own small MCP server. They all talk to one shared da
 ## Light and local
 
 - One runtime dependency (`ws`), no native addons, nothing to compile.
-- A small shared background process serves every agent session and exits when idle.
+- A small shared background process serves every agent session and exits after 6 hours idle. After an update, the first session on the new version replaces an older daemon on its own.
 - Everything stays on your machine: local-only server, token-protected, fonts bundled. Details in [security.md](security.md).
 - Eleven compact tools, about 7 KB of schema per turn, so it barely touches your context window.
