@@ -6,6 +6,8 @@ class FakeSocket {
   static readonly CONNECTING = 0;
   static readonly OPEN = 1;
   static daemonUp = true;
+  /** Addresses that no longer answer, such as a closed preview proxy. */
+  static gone = new Set<string>();
   static created = 0;
   readyState = FakeSocket.CONNECTING;
   onopen: (() => void) | null = null;
@@ -16,7 +18,7 @@ class FakeSocket {
   constructor(readonly url: string) {
     FakeSocket.created++;
     sockets.push(this);
-    setTimeout(() => (FakeSocket.daemonUp ? this.accept() : this.drop()), 0);
+    setTimeout(() => (FakeSocket.daemonUp && !FakeSocket.gone.has(url) ? this.accept() : this.drop()), 0);
   }
   accept(): void {
     this.readyState = FakeSocket.OPEN;
@@ -43,6 +45,7 @@ beforeEach(() => {
   sockets = [];
   statuses = [];
   FakeSocket.daemonUp = true;
+  FakeSocket.gone = new Set();
   FakeSocket.created = 0;
   globalThis.WebSocket = FakeSocket as unknown as typeof WebSocket;
 });
@@ -52,7 +55,7 @@ afterEach(() => {
   globalThis.WebSocket = realWebSocket;
 });
 
-const start = () => connect('ws://127.0.0.1/ws', () => {}, (s) => statuses.push(s));
+const start = (urls = ['ws://127.0.0.1/ws']) => connect(urls, () => {}, (s) => statuses.push(s));
 
 describe('viewer connection status', () => {
   it('says reconnecting at first, says the server stopped once it has been gone 10 s, and keeps retrying', () => {
@@ -126,5 +129,46 @@ describe('viewer connection status', () => {
     const seen = statuses.length;
     vi.advanceTimersByTime(STOPPED_AFTER_MS * 2);
     expect(statuses).toHaveLength(seen);
+  });
+});
+
+describe('viewer connection behind a preview proxy', () => {
+  const PROXY = 'ws://127.0.0.1:59068/ws';
+  const DIRECT = 'ws://127.0.0.1:47428/c/b1/t/ws';
+  const triedAt = (url: string) => sockets.filter((s) => s.url === url).length;
+
+  it('when the proxy goes away, reconnects straight to the daemon and never says stopped', () => {
+    const conn = start([PROXY, DIRECT]);
+    expect(conn.address()).toBe(PROXY);
+    vi.advanceTimersByTime(0);
+    expect([last(), live().url]).toEqual(['live', PROXY]);
+    FakeSocket.gone.add(PROXY);
+    live().drop();
+    vi.advanceTimersByTime(3000);
+    expect([last(), live().url]).toEqual(['live', DIRECT]);
+    expect(conn.address()).toBe(DIRECT);
+    vi.advanceTimersByTime(STOPPED_AFTER_MS * 3);
+    expect(statuses).not.toContain('stopped');
+  });
+
+  it('keeps using the address that works, and only moves on after a failed attempt', () => {
+    start([PROXY, DIRECT]);
+    vi.advanceTimersByTime(0);
+    FakeSocket.gone.add(PROXY);
+    live().drop();
+    vi.advanceTimersByTime(3000);
+    const proxyTries = triedAt(PROXY);
+    live().drop();
+    vi.advanceTimersByTime(3000);
+    expect([last(), live().url]).toEqual(['live', DIRECT]);
+    expect(triedAt(PROXY)).toBe(proxyTries);
+  });
+
+  it('says the server stopped only when every address fails, after trying them all', () => {
+    FakeSocket.daemonUp = false;
+    start([PROXY, DIRECT]);
+    vi.advanceTimersByTime(STOPPED_AFTER_MS);
+    expect(last()).toBe('stopped');
+    expect([triedAt(PROXY) > 0, triedAt(DIRECT) > 0]).toEqual([true, true]);
   });
 });

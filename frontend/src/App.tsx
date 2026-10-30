@@ -7,6 +7,7 @@ import type { LinkStatus } from './connection';
 import { createFollower } from './follow';
 import { Icon } from './Icon';
 import { startLive, type Live } from './live';
+import { leaveDeadProxy } from './proxy';
 import { SAVE_ICON, SaveForm } from './SaveForm';
 import { StatusPill } from './StatusPill';
 
@@ -60,13 +61,14 @@ export function App() {
     if (!api || !config.canvasId) return;
     window.__excalidrawAPI = api;
     const follower = createFollower(api, () => followRef.current);
-    const session = startLive(api, config.wsUrl, {
+    const session = startLive(api, config.wsUrls, {
       status: setStatus,
       viewers: setViewers,
       agentDrew: follower.push,
       title: (t) => setTitle(t === config.canvasId ? '' : t),
       prefs: (p) => setThemeChoice(p.theme),
       dark: () => themeRef.current === 'dark',
+      fellBack: () => void leaveDeadProxy(config.directPage),
     });
     live.current = session;
     return () => {

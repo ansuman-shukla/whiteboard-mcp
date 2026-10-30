@@ -1,4 +1,4 @@
-import { parseViewerPath } from '../../src/shared/protocol';
+import { VIEWER_META, parseViewerPath } from '../../src/shared/protocol';
 
 export type ThemePreference = 'light' | 'dark' | 'auto';
 
@@ -6,7 +6,10 @@ export interface ViewerConfig {
   canvasId: string;
   theme: ThemePreference;
   embed: boolean;
-  wsUrl: string;
+  /** Socket addresses in the order to try: next to the page, then the daemon's own (a proxy in front of the page can go away). */
+  wsUrls: string[];
+  /** The daemon's own address for this page, when the page reached it through a proxy. */
+  directPage?: string;
 }
 
 /**
@@ -14,7 +17,8 @@ export interface ViewerConfig {
  * from the daemon's meta tag (the URL only in the dev server) and the socket from a URL relative to the page.
  */
 export function readConfig(loc: Location = window.location, doc: Document = document): ViewerConfig {
-  const canvasId = doc.querySelector<HTMLMetaElement>('meta[name="whiteboard-canvas"]')?.content || parseViewerPath(loc.pathname)?.canvasId || '';
+  const meta = (name: string) => doc.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content;
+  const canvasId = meta(VIEWER_META.canvas) || parseViewerPath(loc.pathname)?.canvasId || '';
   const params = new URLSearchParams(loc.search);
   const themeParam = params.get('theme');
   const theme: ThemePreference = themeParam === 'light' || themeParam === 'dark' ? themeParam : 'auto';
@@ -22,7 +26,15 @@ export function readConfig(loc: Location = window.location, doc: Document = docu
   ws.protocol = loc.protocol === 'https:' ? 'wss:' : 'ws:';
   ws.search = '';
   ws.hash = '';
-  return { canvasId, theme, embed: params.get('embed') === '1', wsUrl: ws.href };
+  const direct = meta(VIEWER_META.direct);
+  const proxied = !!direct && direct !== ws.href;
+  return {
+    canvasId,
+    theme,
+    embed: params.get('embed') === '1',
+    wsUrls: proxied ? [ws.href, direct] : [ws.href],
+    ...(proxied ? { directPage: `${direct.replace(/^ws:/, 'http:').replace(/ws$/, '')}${loc.search}` } : {}),
+  };
 }
 
 /** localStorage can throw (sandboxed iframes, disabled storage, WKWebView quirks). */

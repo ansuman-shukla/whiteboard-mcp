@@ -29,8 +29,10 @@ export interface Rest {
   post<T = any>(path: string, body: unknown, expectStatus?: number): Promise<T>;
 }
 
-/** Every test gets a fresh canvas id, a REST client, and fails on console errors or non-local requests. */
-export const test = base.extend<{ canvasId: string; rest: Rest; guard: void }>({
+/** Every test gets a fresh canvas id, a REST client, and fails on console errors (unless they match `allowedErrors`) or non-local requests. */
+export const test = base.extend<{ canvasId: string; rest: Rest; guard: void; allowedErrors: RegExp }>({
+  // Matches nothing unless a test expects some console errors.
+  allowedErrors: [/$^/, { option: true }],
   canvasId: async ({}, use, info) => {
     await use(`e2e-${info.workerIndex}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`);
   },
@@ -50,11 +52,11 @@ export const test = base.extend<{ canvasId: string; rest: Rest; guard: void }>({
     });
   },
   guard: [
-    async ({ context }, use) => {
+    async ({ context, allowedErrors }, use) => {
       const problems: string[] = [];
       const watch = (page: Page) => {
         page.on('console', (msg) => {
-          if (msg.type() === 'error') problems.push(`console error: ${msg.text()}`);
+          if (msg.type() === 'error' && !allowedErrors.test(msg.text())) problems.push(`console error: ${msg.text()}`);
         });
         page.on('pageerror', (err) => problems.push(`page error: ${err.message}`));
       };

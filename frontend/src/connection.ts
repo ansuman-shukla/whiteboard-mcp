@@ -11,12 +11,20 @@ export interface Connection {
   isOpen(): boolean;
   /** Reconnect immediately if currently waiting for a retry. */
   retryNow(): void;
+  /** The address in use (or being tried). */
+  address(): string;
+  /** Resolves once what was sent so far has left the page (or after a couple of seconds). */
+  drained(): Promise<void>;
   close(): void;
 }
 
-/** One WebSocket at a time, reconnecting with jittered backoff until closed. */
-export function connect(url: string, onMessage: (msg: ServerMessage) => void, onStatus: (status: LinkStatus) => void): Connection {
+/**
+ * One WebSocket at a time, reconnecting with jittered backoff until closed. An attempt that fails moves on to
+ * the next address (the page's own proxy may be gone while the daemon runs on); one that connected is retried first.
+ */
+export function connect(urls: string[], onMessage: (msg: ServerMessage) => void, onStatus: (status: LinkStatus) => void): Connection {
   let ws: WebSocket | null = null;
+  let current = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let attempt = 0;
   let closed = false;
@@ -43,9 +51,13 @@ export function connect(url: string, onMessage: (msg: ServerMessage) => void, on
     clearTimeout(timer);
     timer = undefined;
     if (closed || ws) return;
-    const s = new WebSocket(url);
+    const s = new WebSocket(urls[current]!);
     ws = s;
-    s.onopen = up;
+    let opened = false;
+    s.onopen = () => {
+      opened = true;
+      up();
+    };
     s.onmessage = (e) => {
       if (typeof e.data !== 'string') return;
       let msg: ServerMessage;
@@ -62,6 +74,7 @@ export function connect(url: string, onMessage: (msg: ServerMessage) => void, on
       detach(s);
       if (ws === s) ws = null;
       if (closed) return;
+      if (!opened) current = (current + 1) % urls.length;
       down();
       timer = setTimeout(open, backoffDelay(attempt++));
     };
@@ -76,6 +89,10 @@ export function connect(url: string, onMessage: (msg: ServerMessage) => void, on
       return true;
     },
     isOpen: () => ws?.readyState === WebSocket.OPEN,
+    address: () => urls[current]!,
+    async drained() {
+      for (let i = 0; i < 40 && (ws?.bufferedAmount ?? 0) > 0; i++) await new Promise((r) => setTimeout(r, 50));
+    },
     retryNow() {
       if (closed || ws) return;
       attempt = 0;

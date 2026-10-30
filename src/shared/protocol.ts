@@ -229,6 +229,12 @@ export const API = {
   ws: '/ws',
 } as const;
 
+/**
+ * Meta tags the daemon adds to the viewer page: its board (a proxy may mount the page at '/') and, for a
+ * valid link, the daemon's own socket address to fall back to when the proxy in front of the page is gone.
+ */
+export const VIEWER_META = { canvas: 'whiteboard-canvas', direct: 'whiteboard-direct' } as const;
+
 /** Splits `/c/<id>/<token>/<rest>` into its parts: `rest` is '' for the page, else a file or `ws`. */
 export function parseViewerPath(pathname: string): { canvasId: string; token: string; rest: string } | undefined {
   const m = /^\/c\/([^/]+)\/([^/]+)\/(.*)$/.exec(pathname);
