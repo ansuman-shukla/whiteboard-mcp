@@ -1,6 +1,6 @@
 {
   "name": "@ansuman-shukla/whiteboard-mcp",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "mcpName": "io.github.ansuman-shukla/whiteboard-mcp",
   "description": "Local, offline Excalidraw whiteboard MCP server: your coding agent (Claude Code, Codex, Cursor, Gemini CLI, VS Code) draws diagrams live beside the chat and sees what you draw back. Also a CLI.",
   "type": "module",
