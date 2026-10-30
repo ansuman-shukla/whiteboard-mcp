@@ -124,7 +124,8 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 const MAX_REQUEST_TIMEOUT_MS = 60_000;
 const UNLOAD_INTERVAL_MS = 60_000;
 const UNLOAD_IDLE_MS = 10 * 60_000;
-const DEFAULT_IDLE_EXIT_MS = 6 * 60 * 60_000;
+// Never: a daemon that quits while the human is away leaves a dead board. A newer version replaces it instead.
+const DEFAULT_IDLE_EXIT_MS = 0;
 const STOP_TIMEOUT_MS = 10_000;
 const REQUEST_TYPES: ReadonlySet<string> = new Set<ViewerRequestType>(['screenshot', 'mermaid', 'focus']);
 const MIME: Record<string, string> = {
