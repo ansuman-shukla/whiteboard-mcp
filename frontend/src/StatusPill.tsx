@@ -66,7 +66,7 @@ export function StatusPill({ status, viewers, follow, onToggleFollow, onNote }: 
       <div className="xl-pill" data-testid="status-pill">
         <span className={`xl-status xl-status--${status}`} role="status" title={TITLES[status]}>
           <i className="xl-dot" />
-          {toast ?? LABELS[status]}
+          <span className="xl-label">{toast ?? LABELS[status]}</span>
         </span>
         {viewers > 1 && (
           <span className="xl-viewers" title={`${viewers} viewers on this canvas`}>
